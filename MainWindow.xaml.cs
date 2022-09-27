@@ -19,7 +19,6 @@ namespace ClipboardServer
 {
     public static class HttpRequestHelper
     {
-
         public static Dictionary<string, string> DataAsForm(this HttpRequest request)
         {
             Dictionary<string, string> result = new Dictionary<string, string>();
@@ -42,6 +41,7 @@ namespace ClipboardServer
     {
         private static string AppName = "ClipboardServer";
         private static int HttpPort = 37259;
+        private static readonly int MaxDataLength = 10485760;
         Webserver server = new Webserver("*", HttpPort, false, null, null, ClipboardType);
         public MainWindow()
         {
@@ -80,18 +80,49 @@ namespace ClipboardServer
         }
 
         [ParameterRoute(HttpMethod.PUT, "/clipboard/text")]
-        public static async Task PutClipboardText(HttpContext ctx)
+        public static async Task PutClipboard(HttpContext ctx)
         {
-            string text = Encoding.UTF8.GetString(ctx.Request.DataAsBytes);
-            if (!string.IsNullOrWhiteSpace(text))
+            if(ctx.Request.ContentLength > MaxDataLength)
+            {
+                await sendString(ctx, "Too Large Size");
+                return;
+            }
+
+            Image image = IsValidImage(ctx.Request.DataAsBytes);
+            if (image != null)
             {
                 RunAsSTA(() =>
                 {
-                    Clipboard.SetText(text);
+                    Clipboard.SetImage(image);
                 });
             }
+            else
+            {
+                string text = Encoding.UTF8.GetString(ctx.Request.DataAsBytes);
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    RunAsSTA(() =>
+                    {
+                        Clipboard.SetText(text);
+                    });
+                }
+            }
+
             await sendString(ctx, "OK");
             return;
+        }
+
+        private static Image IsValidImage(byte[] bytes)
+        {
+            try
+            {
+                using (MemoryStream ms = new MemoryStream(bytes))
+                return Image.FromStream(ms);
+            }
+            catch (ArgumentException)
+            {
+            }
+            return null;
         }
 
         private static async Task sendString(HttpContext ctx, string msg, string contentType= "text/plain;charset=utf-8")
