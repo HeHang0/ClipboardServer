@@ -46,7 +46,6 @@ namespace ClipboardServer
         public MainWindow()
         {
             InitializeComponent();
-            //HttpServer();
         }
 
         [ParameterRoute(HttpMethod.GET, "/clipboard/type")]
@@ -57,6 +56,8 @@ namespace ClipboardServer
             {
                 reponse.Add("text", Clipboard.ContainsText());
                 reponse.Add("image", Clipboard.ContainsImage());
+                reponse.Add("audio", Clipboard.ContainsAudio());
+                reponse.Add("file", Clipboard.ContainsFileDropList());
             });
             string resp = JsonConvert.SerializeObject(reponse);
             ctx.Response.StatusCode = 200;
@@ -79,7 +80,7 @@ namespace ClipboardServer
             return;
         }
 
-        [ParameterRoute(HttpMethod.PUT, "/clipboard/text")]
+        [ParameterRoute(HttpMethod.PUT, "/clipboard")]
         public static async Task PutClipboard(HttpContext ctx)
         {
             if(ctx.Request.ContentLength > MaxDataLength)
@@ -87,7 +88,6 @@ namespace ClipboardServer
                 await sendString(ctx, "Too Large Size");
                 return;
             }
-
             Image image = IsValidImage(ctx.Request.DataAsBytes);
             if (image != null)
             {
