@@ -13,6 +13,8 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Interop;
+using WK.Libraries.WTL;
+using static WK.Libraries.WTL.ThemeListener;
 using Clipboard = System.Windows.Forms.Clipboard;
 
 namespace ClipboardServer
@@ -147,6 +149,7 @@ namespace ClipboardServer
             if (imageSrc == null)
             {
                 ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                await ctx.Response.SendAsync(0);
             }
             else
             {
@@ -163,6 +166,36 @@ namespace ClipboardServer
                     ctx.Response.StatusCode = (int)HttpStatusCode.OK;
                     ctx.Response.ContentLength = ms.Length;
                     await ctx.Response.SendAsync(ms.ToArray());
+                }
+            }
+            return;
+        }
+
+        [ParameterRoute(HttpMethod.GET, "/clipboard/file")]
+        public static async Task ClipboardFile(HttpContext ctx)
+        {
+            string clipboardFile = null;
+            RunAsSTA(() =>
+            {
+                var files = Clipboard.GetFileDropList();
+                if(files != null && files.Count > 0) clipboardFile = files[0];
+            });
+
+            if (clipboardFile == null)
+            {
+                ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                await ctx.Response.SendAsync(0);
+            }
+            else
+            {
+                string encodedFileName = WebUtility.UrlEncode(Path.GetFileName(clipboardFile));
+                ctx.Response.ContentType = "application/octet-stream";
+                ctx.Response.Headers.Add("Content-Disposition", $"attachment; filename=\"{encodedFileName}\"");
+                ctx.Response.StatusCode = (int)HttpStatusCode.OK;
+                using (var fileStream = new FileStream(clipboardFile, FileMode.Open, FileAccess.Read))
+                {
+                    ctx.Response.ContentLength = fileStream.Length;
+                    ctx.Response.TrySend(fileStream.Length, fileStream);
                 }
             }
             return;
@@ -237,7 +270,8 @@ namespace ClipboardServer
             if(systemTheme == WindowsTheme.Dark)
             {
                 notifyIcon.Icon = Properties.Resources.clipboard_white;
-            }else
+            }
+            else
             {
                 notifyIcon.Icon = Properties.Resources.clipboard_black;
             }
@@ -245,12 +279,19 @@ namespace ClipboardServer
 
         private void ClipboardServerSourceInitialized(object sender, EventArgs e)
         {
-            IntPtr wptr = new WindowInteropHelper(this).Handle;
-            HwndSource hs = HwndSource.FromHwnd(wptr);
-            hs.AddHook(new HwndSourceHook(WndProc));
+            //IntPtr wptr = new WindowInteropHelper(this).Handle;
+            //HwndSource hs = HwndSource.FromHwnd(wptr);
+            //hs.AddHook(new HwndSourceHook(WndProc));
+            ThemeListener.Enabled = true;
+            ThemeListener.ThemeSettingsChanged += ThemeSettingsChanged;
             Visibility = Visibility.Hidden;
             Hide();
             Init();
+        }
+
+        private void ThemeSettingsChanged(object sender, ThemeListener.ThemeSettingsChangedEventArgs e)
+        {
+            SetIcon();
         }
 
         private NotifyIcon notifyIcon;
