@@ -1,4 +1,5 @@
-﻿using HttpServerLite;
+﻿using Hardcodet.Wpf.TaskbarNotification;
+using HttpServerLite;
 using Microsoft.Win32;
 using Newtonsoft.Json;
 using System;
@@ -11,11 +12,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Forms;
-using System.Windows.Interop;
+using System.Windows.Controls;
 using WK.Libraries.WTL;
-using static WK.Libraries.WTL.ThemeListener;
 using Clipboard = System.Windows.Forms.Clipboard;
+using Image = System.Drawing.Image;
 
 namespace ClipboardServer
 {
@@ -218,15 +218,25 @@ namespace ClipboardServer
         MenuItem startupMenu;
         private void Init()
         {
-            startupMenu = new MenuItem("Startup", OnSetStartup)
+            startupMenu = new MenuItem()
             {
-                Checked = IsStartupEnabled()
+                Header = "Star",
+                IsCheckable = true,
+                IsChecked = IsStartupEnabled()
             };
-            notifyIcon = new NotifyIcon()
+            startupMenu.Click += OnSetStartup;
+            var exitMenu = new MenuItem()
             {
-                ContextMenu = new ContextMenu(new MenuItem[] {startupMenu, new MenuItem("Exit", Exit) }),
-                Text = "Listen On " + HttpPort,
-                Visible = true,
+                Header = "Exit"
+            };
+            exitMenu.Click += Exit;
+            notifyIcon = new TaskbarIcon()
+            {
+                ContextMenu = new ContextMenu()
+                {
+                    Items = { startupMenu, exitMenu }
+                },
+                ToolTipText = "Listen On " + HttpPort
             };
             SetIcon();
             server.Start();
@@ -239,11 +249,10 @@ namespace ClipboardServer
 
         private void OnSetStartup(object sender, EventArgs e)
         {
-            startupMenu.Checked = !startupMenu.Checked;
             string keyName = @"Software\Microsoft\Windows\CurrentVersion\Run";
             using (RegistryKey rKey = Registry.CurrentUser.OpenSubKey(keyName, true))
             {
-                if (startupMenu.Checked)
+                if (startupMenu.IsChecked)
                 {
                     rKey.SetValue(AppName, System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName);
                 }
@@ -266,8 +275,9 @@ namespace ClipboardServer
         
         private void SetIcon()
         {
+            notifyIcon.ContextMenu.UpdateDefaultStyle();
             WindowsTheme systemTheme = ThemeHelper.GetWindowsTheme();
-            if(systemTheme == WindowsTheme.Dark)
+            if (systemTheme == WindowsTheme.Dark)
             {
                 notifyIcon.Icon = Properties.Resources.clipboard_white;
             }
@@ -279,9 +289,6 @@ namespace ClipboardServer
 
         private void ClipboardServerSourceInitialized(object sender, EventArgs e)
         {
-            //IntPtr wptr = new WindowInteropHelper(this).Handle;
-            //HwndSource hs = HwndSource.FromHwnd(wptr);
-            //hs.AddHook(new HwndSourceHook(WndProc));
             ThemeListener.Enabled = true;
             ThemeListener.ThemeSettingsChanged += ThemeSettingsChanged;
             Visibility = Visibility.Hidden;
@@ -294,7 +301,7 @@ namespace ClipboardServer
             SetIcon();
         }
 
-        private NotifyIcon notifyIcon;
+        private TaskbarIcon notifyIcon;
         private void ClipboardServerClosing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             notifyIcon.Dispose();

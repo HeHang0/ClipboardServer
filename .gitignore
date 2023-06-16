@@ -1,3 +1,5 @@
 .vs
 bin
 obj
+FodyWeavers.*
+*.csproj.user
