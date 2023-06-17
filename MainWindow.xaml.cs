@@ -12,7 +12,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using Windows.Globalization;
 using WK.Libraries.WTL;
 using Clipboard = System.Windows.Forms.Clipboard;
 using Image = System.Drawing.Image;
@@ -44,10 +43,41 @@ namespace ClipboardServer
         private static string AppName = "ClipboardServer";
         private static int HttpPort = 37259;
         private static readonly int MaxDataLength = 10485760;
-        Webserver server = new Webserver("*", HttpPort, false, null, null, ClipboardType);
+        private static byte[] favicon;
+        Webserver server = new Webserver("*", HttpPort, false, null, null, ClipboardIndex);
         public MainWindow()
         {
             InitializeComponent();
+            InitFavicon();
+        }
+
+        private void InitFavicon()
+        {
+            using (MemoryStream ms = new MemoryStream())
+            {
+                Properties.Resources.clipboard_black.Save(ms);
+                favicon = ms.ToArray();
+            }
+        }
+
+        public static async Task ClipboardIndex(HttpContext ctx)
+        {
+#if DEBUG
+            var indexPath = Path.GetFullPath(Path.Combine("..", "..", "Resources", "index.html"));
+            await sendString(ctx, File.ReadAllText(indexPath), "text/html");
+#else
+                await sendString(ctx, Properties.Resources.index, "text/html");
+#endif
+            return;
+        }
+
+        [ParameterRoute(HttpMethod.GET, "/favicon.ico")]
+        public static async Task ClipboardIcon(HttpContext ctx)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.OK;
+            ctx.Response.ContentType = "image/x-icon";
+            await ctx.Response.SendAsync(favicon);
+            return;
         }
 
         [ParameterRoute(HttpMethod.GET, "/clipboard/type")]
@@ -58,14 +88,9 @@ namespace ClipboardServer
             {
                 reponse.Add("text", Clipboard.ContainsText());
                 reponse.Add("image", Clipboard.ContainsImage());
-                reponse.Add("audio", Clipboard.ContainsAudio());
                 reponse.Add("file", Clipboard.ContainsFileDropList());
             });
             string resp = JsonConvert.SerializeObject(reponse);
-            ctx.Response.StatusCode = 200;
-            ctx.Response.ContentType = "application/json";
-            ctx.Response.ContentLength = resp.Length;
-            await ctx.Response.SendAsync(resp);
             await sendString(ctx, resp, "application/json");
             return;
         }
@@ -88,6 +113,12 @@ namespace ClipboardServer
             if(ctx.Request.ContentLength > MaxDataLength)
             {
                 await sendString(ctx, "Too Large Size");
+                return;
+            }
+            var contentType = ctx.Request.Headers.Get("Content-Type").ToLower();
+            if (contentType.StartsWith("file"))
+            {
+                await sendString(ctx, "Unsupported type");
                 return;
             }
             Image image = IsValidImage(ctx.Request.DataAsBytes);
@@ -140,10 +171,27 @@ namespace ClipboardServer
         [ParameterRoute(HttpMethod.GET, "/clipboard/image")]
         public static async Task ClipboardImage(HttpContext ctx)
         {
-            Image imageSrc = null;
+            MemoryStream imageSrc = null;
+            string format = "";
             RunAsSTA(() =>
             {
-                imageSrc = Clipboard.GetImage();
+                var dataObject = Clipboard.GetDataObject();
+                if(dataObject != null && dataObject.GetFormats().Length > 0)
+                {
+                    format = dataObject.GetFormats()[0];
+                    if (format.ToLower().Contains("bitmap"))
+                    {
+                        Image image = dataObject.GetData(System.Windows.Forms.DataFormats.Bitmap, true) as Image;
+                        imageSrc = new MemoryStream();
+                        ImageFormat imageFormat = image.RawFormat.Equals(ImageFormat.MemoryBmp) ? ImageFormat.Png : image.RawFormat;
+                        image.Save(imageSrc, ImageFormat.Png);
+                        format = imageFormat.ToString();
+                    }
+                    else
+                    {
+                        imageSrc = dataObject.GetData(format) as MemoryStream;
+                    }
+                }
             });
             
             if (imageSrc == null)
@@ -153,20 +201,11 @@ namespace ClipboardServer
             }
             else
             {
-                using(MemoryStream ms = new MemoryStream())
-                {
-                    ImageFormat imageFormat = imageSrc.RawFormat;
-                    if (imageFormat.Equals(ImageFormat.MemoryBmp))
-                    {
-                        imageFormat = ImageFormat.Png;
-                    }
-                    
-                    ctx.Response.ContentType = "image/" + imageFormat.ToString().ToLower();
-                    imageSrc.Save(ms, imageFormat);
-                    ctx.Response.StatusCode = (int)HttpStatusCode.OK;
-                    ctx.Response.ContentLength = ms.Length;
-                    await ctx.Response.SendAsync(ms.ToArray());
-                }
+                ctx.Response.ContentType = "image/" + format.ToLower();
+                ctx.Response.StatusCode = (int)HttpStatusCode.OK;
+                ctx.Response.ContentLength = imageSrc.Length;
+                await ctx.Response.SendAsync(imageSrc.ToArray());
+                imageSrc.Close();
             }
             return;
         }

@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html;charset=utf-8" />
+    <title>ClipboardServer</title>
+    <style>
+      :root {
+        --background-color: 0, 0, 0;
+        --background-color-second: 105, 126, 145;
+        --font-color: #697e91;
+        --text-color: white;
+        --selected-color: #00f7e2;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background-color: rgb(var(--background-color));
+      }
+      body {
+        overflow: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .background-image {
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        background-size: cover;
+        /* background-image: url(https://www.dmoe.cc/random.php?233335556958); */
+        position: fixed;
+        width: 100vw;
+        height: 100vh;
+        opacity: 0.5;
+        z-index: 0;
+      }
+      .layout {
+        width: calc(100% - 220px);
+        min-width: 350px;
+        z-index: 1;
+      }
+      .title {
+        position: relative;
+        font-size: 24px;
+      }
+      .title > span:first-child {
+        text-shadow: var(--font-color) 1px 1px 1px;
+        color: #f200ff00;
+        position: absolute;
+        left: 0;
+      }
+      .title > span:nth-child(2) {
+        background: linear-gradient(144deg, #af40ff, #5b42f3 50%, #00ddeb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        position: relative;
+      }
+      .inner {
+        padding: 19px;
+        margin-bottom: 20px;
+        border: 1px solid rgb(var(--background-color-second));
+        border-radius: 6px;
+        box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.05);
+        background: rgba(var(--background-color), 0.58);
+        text-shadow: #000 1px 1px 1px;
+        color: #00f1ff;
+        min-height: 500px;
+        position: relative;
+      }
+      .container {
+        width: 100%;
+      }
+      .row {
+        display: flex;
+      }
+      .row > button {
+        flex: 1;
+        margin: 6px 0 6px 6px;
+      }
+      button,
+      .component-layout {
+        align-items: center;
+        background-image: linear-gradient(
+          144deg,
+          #af40ff,
+          #5b42f3 50%,
+          #00ddeb
+        );
+        border: 0;
+        border-radius: 8px;
+        box-shadow: rgba(151, 65, 252, 0.2) 0 15px 30px -5px;
+        box-sizing: border-box;
+        color: var(--text-color);
+        display: flex;
+        font-family: Phantomsans, sans-serif;
+        font-size: 18px;
+        justify-content: center;
+        line-height: 1em;
+        max-width: 100%;
+        min-width: 140px;
+        padding: 3px;
+        text-decoration: none;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      button:active,
+      button:hover {
+        outline: 0;
+      }
+
+      button span {
+        background-color: rgb(5, 6, 45);
+        border-radius: 6px;
+        width: 100%;
+        height: 100%;
+        transition: 300ms;
+        min-height: 38px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      button:hover span {
+        background: none;
+      }
+
+      button:active {
+        transform: scale(0.9);
+      }
+      .component-layout {
+        width: 100%;
+        height: 0;
+        margin-top: 0;
+        cursor: default;
+        user-select: auto;
+        font-size: unset;
+        opacity: 0;
+        padding: 0;
+      }
+      .component-layout > .component-layout-body {
+        background-color: rgb(5, 6, 45);
+        padding: 10px;
+        border-radius: 6px;
+        width: 100%;
+        height: calc(100% - 20px);
+        transition: 300ms;
+        overflow: auto;
+      }
+      .component-layout > .component-layout-body > pre {
+        margin: 0;
+      }
+      .component-layout-center {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .clipboard-img {
+        max-height: 100%;
+        max-width: 100%;
+      }
+      /* .noresize {
+        resize: none !important;
+      } */
+      textarea {
+        width: calc(100% - 4px);
+        resize: none;
+        border: 0;
+        margin: 0;
+        background: transparent;
+        color: white;
+        outline: 0;
+        height: calc(100% - 6px);
+      }
+      a {
+        text-decoration: auto;
+        width: 100%;
+        height: 100%;
+        color: white;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .uploader-header > p,
+      a span {
+        position: relative;
+        text-align: center;
+      }
+      .uploader-header > p:after,
+      a span:after {
+        content: '';
+        position: absolute;
+        border-bottom: 2px solid #3476d2;
+        bottom: -3px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0;
+        transition: width 350ms;
+      }
+      .uploader-container:hover > .uploader-header > p:after,
+      a:hover span:after {
+        width: 100%;
+      }
+      .spinner-container {
+        width: 100%;
+        height: 100%;
+        background-color: rgba(36, 36, 36, 0.247);
+        display: none;
+        position: absolute;
+        left: 0;
+        top: 0;
+        align-items: center;
+        justify-content: center;
+      }
+      .spinner {
+        background-image: linear-gradient(
+          rgb(186, 66, 255) 35%,
+          rgb(0, 225, 255)
+        );
+        width: 100px;
+        height: 100px;
+        animation: spinning82341 1.7s linear infinite;
+        text-align: center;
+        border-radius: 50px;
+        filter: blur(1px);
+        box-shadow: 0px -5px 20px 0px rgb(186, 66, 255),
+          0px 5px 20px 0px rgb(0, 225, 255);
+      }
+
+      .spinner1 {
+        background-color: rgb(36, 36, 36);
+        width: 100px;
+        height: 100px;
+        border-radius: 50px;
+        filter: blur(10px);
+      }
+
+      @keyframes spinning82341 {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .radio-inputs {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        max-width: 350px;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
+
+      .radio-inputs > label {
+        background-image: linear-gradient(
+          144deg,
+          #af40ff,
+          #5b42f3 50%,
+          #00ddeb
+        );
+        box-shadow: rgba(151, 65, 252, 0.2) 0 15px 30px -5px;
+        box-sizing: border-box;
+        border-radius: 8px;
+        /* width: 100px; */
+      }
+
+      .radio-inputs > label + label {
+        margin-left: 12px;
+      }
+
+      .radio-input:checked + .radio-tile {
+        /* border-color: #2260ff; */
+        /* box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1); */
+        color: var(--selected-color);
+      }
+
+      .radio-input:checked + .radio-tile:before {
+        transform: scale(1);
+        opacity: 1;
+        background-color: var(--selected-color);
+        /* border-color: #2260ff; */
+      }
+
+      .radio-input:checked + .radio-tile .radio-icon svg {
+        fill: var(--selected-color);
+      }
+
+      .radio-input:checked + .radio-tile .radio-label {
+        color: var(--selected-color);
+      }
+
+      /* .radio-input:focus + .radio-tile {
+        border-color: #2260ff;
+        box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1), 0 0 0 4px #b5c9fc;
+      } */
+
+      .radio-input:focus + .radio-tile:before {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      .radio-tile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: calc(100% - 6px);
+        /* min-height: 80px; */
+        background-color: rgb(5, 6, 45);
+        border-radius: 6px;
+        box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+        transition: 0.15s ease;
+        cursor: pointer;
+        position: relative;
+        margin: 3px;
+        border: 0;
+      }
+
+      .radio-tile:before {
+        content: '';
+        position: absolute;
+        display: block;
+        width: 0.75rem;
+        height: 0.75rem;
+        border: 2px solid var(--selected-color);
+        border-radius: 50%;
+        top: 0.25rem;
+        left: 0.25rem;
+        opacity: 0;
+        transform: scale(0);
+        transition: 0.25s ease;
+      }
+
+      .radio-tile:hover {
+        border-color: #2260ff;
+      }
+
+      .radio-tile:hover:before {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      .radio-icon {
+        margin: 6px;
+        margin: 6px;
+        display: flex;
+      }
+
+      .radio-icon svg {
+        height: 26px;
+        width: 26px;
+        fill: var(--text-color);
+      }
+
+      .radio-label {
+        color: #707070;
+        transition: 0.375s ease;
+        text-align: center;
+        font-size: 13px;
+      }
+
+      .radio-input {
+        clip: rect(0 0 0 0);
+        -webkit-clip-path: inset(100%);
+        clip-path: inset(100%);
+        height: 1px;
+        overflow: hidden;
+        position: absolute;
+        white-space: nowrap;
+        width: 1px;
+      }
+
+      .uploader-container {
+        height: calc(100% - 20px);
+        width: calc(100% - 20px);
+        border-radius: 10px;
+        box-shadow: 4px 4px 30px rgba(0, 0, 0, 0.2);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px;
+        gap: 5px;
+        background-color: rgba(0, 110, 255, 0.041);
+      }
+      .uploader-image {
+        height: 100%;
+        width: 100%;
+        padding: 0;
+        background-color: unset;
+      }
+      .uploader-image > .uploader-header {
+        height: 100%;
+      }
+
+      .uploader-header {
+        flex: 1;
+        width: 100%;
+        border: 2px dashed royalblue;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        cursor: pointer;
+      }
+
+      .uploader-header svg {
+        height: 100px;
+      }
+
+      .uploader-header p {
+        text-align: center;
+        color: var(--text-color);
+      }
+
+      .uploader-footer {
+        /* background-color: rgba(0, 110, 255, 0.075); */
+        width: 100%;
+        height: 40px;
+        padding: 8px;
+        border-radius: 10px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        color: var(--text-color);
+        border: none;
+      }
+
+      .uploader-footer svg {
+        height: 130%;
+        fill: royalblue;
+        background-color: rgba(70, 66, 66, 0.103);
+        border-radius: 50%;
+        padding: 2px;
+        cursor: pointer;
+        box-shadow: 0 2px 30px rgba(0, 0, 0, 0.205);
+      }
+
+      .uploader-footer .uploader-footer-title {
+        flex: 1;
+        text-align: center;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        padding: 0 10px;
+      }
+
+      .input-file {
+        display: none;
+      }
+
+      @media (max-width: 768px) {
+        .layout {
+          width: calc(100% - 40px);
+        }
+        .row {
+          display: block;
+          padding: 10px 0 5px 0;
+        }
+        .row > button {
+          margin: 6px 0 6px 0;
+          width: 100%;
+        }
+        .row > .radio-inputs {
+          max-width: unset;
+          width: 100%;
+        }
+      }
+
+      /* 暗色模式下的滚动条样式 */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background-color: #2f2f2f; /* 滚动条轨道的颜色 */
+        border-radius: 4px; /* 滚动条轨道的圆角 */
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background-color: #666; /* 滚动条的颜色 */
+        border-radius: 4px; /* 滚动条的圆角 */
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: #555; /* 鼠标悬停在滚动条上时的颜色 */
+      }
+    </style>
+    <script>
+      const heightMap = JSON.parse(
+        localStorage.getItem('height-cache') || '{}'
+      );
+      heightMap['clipboardFileContainer'] = '100px';
+      let params = new URLSearchParams(location.search);
+      const serverAddress =
+        decodeURIComponent(params.get('server')) ||
+        location.origin + location.pathname;
+      window.onbeforeunload = function () {
+        localStorage.setItem('height-cache', JSON.stringify(heightMap));
+      };
+      let currentClipboardType = '';
+      let selectedFile = null;
+      let selectedImage = null;
+      window.onload = function () {
+        onClipboardSetterChange('text');
+        document.getElementsByClassName(
+          'background-image'
+        )[0].style.backgroundImage =
+          'url(https://www.dmoe.cc/random.php?233335556958)';
+        document.getElementById('downloadClipboardFile').href =
+          serverAddress + '/clipboard/file';
+      };
+
+      function setLoading(show) {
+        const loading = document.getElementById('loading');
+        loading.style.display = show ? 'flex' : 'none';
+      }
+
+      async function getClipboard() {
+        setLoading(true);
+        try {
+          const types = await fetch(serverAddress + '/clipboard/type');
+          const typesRes = await types.json();
+          //{"text":true,"image":false,"audio":false,"file":false}
+          if (typesRes.text) {
+            const textResponse = await fetch(serverAddress + '/clipboard/text');
+            const text = await textResponse.text();
+            setClipBoardText(text);
+          } else if (typesRes.image) {
+            const imageResponse = await fetch(
+              serverAddress + '/clipboard/image'
+            );
+            const imageData = await imageResponse.blob();
+            setClipBoardImage(imageData);
+          } else if (typesRes.file) {
+            setClipBoardFile();
+          }
+        } catch (error) {
+          console.log('get clipboard err: ', error);
+        }
+        setLoading(false);
+      }
+
+      async function setClipboard() {
+        switch (currentClipboardType) {
+          case 'text':
+            data = document.getElementById('clipboardSetterText').value;
+            setLoading(true);
+            setClipboardRequest(data);
+            break;
+          case 'image':
+          case 'file':
+            const file =
+              currentClipboardType == 'image' ? selectedImage : selectedFile;
+            if (!file || file.size > 10485760) return;
+            let reader = new FileReader();
+            setLoading(true);
+            reader.onload = function () {
+              setClipboardRequest(reader.result);
+            };
+            reader.onerror = function () {
+              setLoading(false);
+            };
+            reader.readAsArrayBuffer(file);
+            break;
+        }
+      }
+
+      async function setClipboardRequest(data) {
+        try {
+          if (data) {
+            const res = await fetch(serverAddress + '/clipboard', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': currentClipboardType,
+                'Content-Name': document.getElementById('clipboardSetterFile')
+                  .innerText
+              },
+              body: data
+            });
+            await res.text();
+          }
+        } catch (err) {
+          console.log(err);
+        }
+        setLoading(false);
+      }
+
+      function setClipBoardText(text) {
+        setComponentDisplay('clipboardTextContainer', true);
+        setComponentDisplay('clipboardImageContainer', false);
+        setComponentDisplay('clipboardFileContainer', false);
+        const clipboardText = document.getElementById('clipboardText');
+        clipboardText.innerText = text;
+      }
+
+      function setClipBoardImage(imageData) {
+        setComponentDisplay('clipboardTextContainer', false);
+        setComponentDisplay('clipboardImageContainer', true);
+        setComponentDisplay('clipboardFileContainer', false);
+        const clipboardImage = document.getElementById('clipboardImage');
+        clipboardImage.src = URL.createObjectURL(imageData);
+      }
+
+      function setClipBoardFile(imageData) {
+        setComponentDisplay('clipboardTextContainer', false);
+        setComponentDisplay('clipboardImageContainer', false);
+        setComponentDisplay('clipboardFileContainer', true);
+      }
+
+      document.addEventListener('paste', function (ev) {
+        if (
+          ev.clipboardData &&
+          ev.clipboardData.items &&
+          ev.clipboardData.items.length > 0
+        ) {
+          let clipboardData = null;
+          for (let i = ev.clipboardData.items.length - 1; i >= 0; i--) {
+            const element = ev.clipboardData.items[i];
+            if (element.kind == 'file' || i == 0) {
+              clipboardData = element;
+              break;
+            }
+          }
+          if (clipboardData.kind !== 'string') {
+            const clipBoardFile = clipboardData.getAsFile();
+            if (!clipBoardFile) return;
+            clipboardSetterFileChange(
+              clipBoardFile,
+              clipBoardFile.type.startsWith('image') ? 'image' : 'file'
+            );
+          } else if (currentClipboardType !== 'text') {
+            clipboardData.getAsString(function (data) {
+              if (!data) return;
+              onClipboardSetterChange('text', data);
+            });
+          }
+        }
+      });
+
+      async function readClipboard() {
+        setLoading(true);
+        try {
+          const clipboardItems = await navigator.clipboard.read();
+          if (clipboardItems.length > 0) {
+            for (let i = clipboardItems[0].types.length - 1; i >= 0; i--) {
+              const type = clipboardItems[0].types[i];
+              if (!type.startsWith('text') || i == 0) {
+                const file = await clipboardItems[0].getType(type);
+                if (!file) continue;
+                if (type.startsWith('image')) {
+                  clipboardSetterFileChange(file, 'image');
+                } else if (type.startsWith('text')) {
+                  let reader = new FileReader();
+                  reader.onloadend = function () {
+                    reader.result &&
+                      clipboardSetterFileChange(reader.result, 'text');
+                  };
+                  reader.readAsText(file);
+                }
+                break;
+              }
+            }
+          }
+        } catch (error) {
+          console.log('get clipboard err', error);
+        }
+        setLoading(false);
+      }
+
+      function clipboardSetterFileChange(file, type) {
+        switch (type) {
+          case 'image':
+            selectedImage = file;
+            onClipboardSetterChange('image', URL.createObjectURL(file));
+            break;
+          case 'file':
+            selectedFile = file;
+            onClipboardSetterChange('file', file.name);
+            break;
+          case 'text':
+            onClipboardSetterChange('text', file);
+            break;
+        }
+      }
+
+      function clipboardSetterUploaderChange(event) {
+        const type = event.target.dataset.clipboardType;
+        if (event.target.files.length > 0) {
+          clipboardSetterFileChange(event.target.files[0], type);
+        }
+      }
+
+      function onClipboardSetterChange(event, data) {
+        let clipboardType = event;
+        if (typeof event !== 'string' && event.target.dataset.clipboardType) {
+          clipboardType = event.target.dataset.clipboardType;
+        }
+        currentClipboardType = clipboardType;
+        if (clipboardType === 'file') {
+          setComponentDisplay('clipboardSetTextContainer', false);
+          setComponentDisplay('clipboardSetImageContainer', false);
+          setComponentDisplay('clipboardSetFileContainer', true);
+          if (typeof data === 'string') {
+            const clipboardSetterFile = document.getElementById(
+              'clipboardSetterFile'
+            );
+            clipboardSetterFile.innerText = data;
+            clipboardSetterFile.title = data;
+          }
+        } else if (clipboardType === 'image') {
+          setComponentDisplay('clipboardSetTextContainer', false);
+          setComponentDisplay('clipboardSetImageContainer', true);
+          setComponentDisplay('clipboardSetFileContainer', false);
+          const clipboardSetterUploaderImage = document.getElementById(
+            'clipboardSetterUploaderImage'
+          );
+          const clipboardSetterImage = document.getElementById(
+            'clipboardSetterImage'
+          );
+          if (!data) data = clipboardSetterImage.src;
+          if (typeof data === 'string' && data) {
+            if (clipboardSetterImage.src != data)
+              clipboardSetterImage.src = data;
+            clipboardSetterUploaderImage.style.display = 'none';
+            clipboardSetterUploaderImage.parentElement.style.borderWidth = 0;
+          } else {
+            clipboardSetterUploaderImage.style.display = '';
+            clipboardSetterUploaderImage.parentElement.style.borderWidth = '';
+          }
+        } else {
+          setComponentDisplay('clipboardSetTextContainer', true);
+          setComponentDisplay('clipboardSetImageContainer', false);
+          setComponentDisplay('clipboardSetFileContainer', false);
+          if (data) document.getElementById('clipboardSetterText').value = data;
+        }
+        document.querySelector(
+          `input[name="clipboard"][data-clipboard-type="${clipboardType}"]`
+        ).checked = true;
+      }
+
+      function setComponentDisplay(id, show) {
+        const componentContainer = document.getElementById(id);
+        let originHeight = componentContainer.style.height;
+        if (!originHeight || originHeight == '0px') originHeight = 0;
+        if (originHeight) {
+          heightMap[id] = originHeight;
+        }
+        if (heightMap[id] == '0px') heightMap[id] = 0;
+        const height = show ? originHeight || heightMap[id] || '300px' : 0;
+        const marginTop = show ? '10px' : 0;
+        const opacity = show ? 1 : 0;
+        const resize =
+          show && !componentContainer.className.includes('noresize')
+            ? 'vertical'
+            : 'none';
+        const overflow = show ? 'auto' : 'unset';
+        const padding = show ? '3px' : 0;
+        const zIndex = show ? 1 : 0;
+        const childPadding = show ? '10px' : 0;
+        if (show) {
+          setTimeout(() => {
+            componentContainer.style.transition = 'none';
+          }, 300);
+        } else {
+          componentContainer.style.transition = 'all 0.3s';
+        }
+        componentContainer.style.height = height;
+        componentContainer.style.opacity = opacity;
+        componentContainer.style.marginTop = marginTop;
+        componentContainer.style.overflow = overflow;
+        componentContainer.style.padding = padding;
+        componentContainer.style.zIndex = zIndex;
+        componentContainer.style.resize = resize;
+        componentContainer.children[0].style.padding = childPadding;
+      }
+    </script>
+  </head>
+  <body>
+    <div class="background-image"></div>
+    <div class="layout">
+      <p class="title">
+        <span>Clipboard Server</span><span>Clipboard Server</span>
+      </p>
+      <div class="inner">
+        <!-- Get Clipboard -->
+        <div class="container">
+          <button style="width: 100%" onclick="getClipboard()">
+            <span class="text">获取剪贴板</span>
+          </button>
+          <div id="clipboardTextContainer" class="component-layout">
+            <div class="component-layout-body" style="cursor: text">
+              <pre><code id="clipboardText"></code></pre>
+            </div>
+          </div>
+          <div id="clipboardImageContainer" class="component-layout">
+            <div class="component-layout-body component-layout-center">
+              <img class="clipboard-img" id="clipboardImage" />
+            </div>
+          </div>
+          <div id="clipboardFileContainer" class="component-layout noresize">
+            <div class="component-layout-body component-layout-center">
+              <a id="downloadClipboardFile">
+                <span>点击下载文件</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Set Clipboard -->
+        <div class="container" style="margin-top: 10px">
+          <div class="row">
+            <div class="radio-inputs">
+              <label title="文本">
+                <input
+                  class="radio-input"
+                  type="radio"
+                  name="clipboard"
+                  data-clipboard-type="text"
+                  onchange="onClipboardSetterChange(event)"
+                  checked />
+                <span class="radio-tile">
+                  <span class="radio-icon">
+                    <svg
+                      t="1686999404192"
+                      class="icon"
+                      viewBox="0 0 1024 1024"
+                      version="1.1"
+                      xmlns="http://www.w3.org/2000/svg"
+                      p-id="8663"
+                      width="256"
+                      height="256">
+                      <path
+                        d="M854.6 288.7c6 6 9.4 14.1 9.4 22.6V928c0 17.7-14.3 32-32 32H192c-17.7 0-32-14.3-32-32V96c0-17.7 14.3-32 32-32h424.7c8.5 0 16.7 3.4 22.7 9.4l215.2 215.3zM790.2 326L602 137.8V326h188.2zM320 482a8 8 0 0 0-8 8v48a8 8 0 0 0 8 8h384a8 8 0 0 0 8-8v-48a8 8 0 0 0-8-8H320z m0 136a8 8 0 0 0-8 8v48a8 8 0 0 0 8 8h184a8 8 0 0 0 8-8v-48a8 8 0 0 0-8-8H320z"
+                        p-id="8664"></path>
+                    </svg>
+                  </span>
+                </span>
+              </label>
+              <label title="图片">
+                <input
+                  class="radio-input"
+                  type="radio"
+                  name="clipboard"
+                  data-clipboard-type="image"
+                  onchange="onClipboardSetterChange(event)" />
+                <span class="radio-tile">
+                  <span class="radio-icon">
+                    <svg
+                      t="1686999434870"
+                      class="icon"
+                      viewBox="0 0 1024 1024"
+                      version="1.1"
+                      xmlns="http://www.w3.org/2000/svg"
+                      p-id="8807"
+                      width="256"
+                      height="256">
+                      <path
+                        d="M854.6 288.7L639.4 73.4c-6-6-14.2-9.4-22.7-9.4H192c-17.7 0-32 14.3-32 32v832c0 17.7 14.3 32 32 32h640c17.7 0 32-14.3 32-32V311.3c0-8.5-3.4-16.6-9.4-22.6zM400 402c22.1 0 40 17.9 40 40s-17.9 40-40 40-40-17.9-40-40 17.9-40 40-40z m296 294H328c-6.7 0-10.4-7.7-6.3-12.9l99.8-127.2c3.2-4.1 9.4-4.1 12.6 0l41.1 52.4 77.8-99.2c3.2-4.1 9.4-4.1 12.6 0l136.5 174c4.3 5.2 0.5 12.9-6.1 12.9z m-94-370V137.8L790.2 326H602z"
+                        p-id="8808"></path>
+                    </svg>
+                  </span>
+                </span>
+              </label>
+              <label title="文件">
+                <input
+                  class="radio-input"
+                  type="radio"
+                  name="clipboard"
+                  data-clipboard-type="file"
+                  onchange="onClipboardSetterChange(event)" />
+                <span class="radio-tile">
+                  <span class="radio-icon">
+                    <svg
+                      t="1686999284292"
+                      class="icon"
+                      viewBox="0 0 1024 1024"
+                      version="1.1"
+                      xmlns="http://www.w3.org/2000/svg"
+                      p-id="8375"
+                      width="256"
+                      height="256">
+                      <path
+                        d="M854.6 288.7c6 6 9.4 14.1 9.4 22.6V928c0 17.7-14.3 32-32 32H192c-17.7 0-32-14.3-32-32V96c0-17.7 14.3-32 32-32h424.7c8.5 0 16.7 3.4 22.7 9.4l215.2 215.3zM790.2 326L602 137.8V326h188.2z"
+                        p-id="8376"></path>
+                    </svg>
+                  </span>
+                </span>
+              </label>
+              <label style="flex: 1">
+                <button
+                  onclick="readClipboard()"
+                  style="min-width: 120px; width: 100%">
+                  <span class="text">读取剪贴板</span>
+                </button>
+              </label>
+            </div>
+            <button onclick="setClipboard()">
+              <span class="text">设定剪贴板</span>
+            </button>
+          </div>
+          <div id="clipboardSetTextContainer" class="component-layout">
+            <div class="component-layout-body" style="cursor: text">
+              <textarea id="clipboardSetterText"></textarea>
+            </div>
+          </div>
+          <div id="clipboardSetImageContainer" class="component-layout">
+            <div class="component-layout-body component-layout-center">
+              <div class="uploader-container uploader-image">
+                <label for="uploader-image" class="uploader-header">
+                  <div id="clipboardSetterUploaderImage">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg">
+                      <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+                      <g
+                        id="SVGRepo_tracerCarrier"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"></g>
+                      <g id="SVGRepo_iconCarrier">
+                        <path
+                          d="M7 10V9C7 6.23858 9.23858 4 12 4C14.7614 4 17 6.23858 17 9V10C19.2091 10 21 11.7909 21 14C21 15.4806 20.1956 16.8084 19 17.5M7 10C4.79086 10 3 11.7909 3 14C3 15.4806 3.8044 16.8084 5 17.5M7 10C7.43285 10 7.84965 10.0688 8.24006 10.1959M12 12V21M12 12L15 15M12 12L9 15"
+                          stroke="#ffffff"
+                          stroke-width="1.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"></path>
+                      </g>
+                    </svg>
+                    <p>点击浏览图像</p>
+                  </div>
+                  <img class="clipboard-img" id="clipboardSetterImage" />
+                  <input
+                    id="uploader-image"
+                    type="file"
+                    class="input-file"
+                    accept="image/*"
+                    data-clipboard-type="image"
+                    onchange="clipboardSetterUploaderChange(event)" />
+                </label>
+              </div>
+            </div>
+          </div>
+          <div id="clipboardSetFileContainer" class="component-layout noresize">
+            <div class="component-layout-body">
+              <div class="uploader-container">
+                <label for="uploader-file" class="uploader-header">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+                    <g
+                      id="SVGRepo_tracerCarrier"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"></g>
+                    <g id="SVGRepo_iconCarrier">
+                      <path
+                        d="M7 10V9C7 6.23858 9.23858 4 12 4C14.7614 4 17 6.23858 17 9V10C19.2091 10 21 11.7909 21 14C21 15.4806 20.1956 16.8084 19 17.5M7 10C4.79086 10 3 11.7909 3 14C3 15.4806 3.8044 16.8084 5 17.5M7 10C7.43285 10 7.84965 10.0688 8.24006 10.1959M12 12V21M12 12L15 15M12 12L9 15"
+                        stroke="#ffffff"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"></path>
+                    </g>
+                  </svg>
+                  <p>点击浏览文件</p>
+                </label>
+                <label for="uploader-file" class="uploader-footer">
+                  <svg
+                    fill="#ffffff"
+                    viewBox="0 0 32 32"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+                    <g
+                      id="SVGRepo_tracerCarrier"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"></g>
+                    <g id="SVGRepo_iconCarrier">
+                      <path d="M15.331 6H8.5v20h15V14.154h-8.169z"></path>
+                      <path d="M18.153 6h-.009v5.342H23.5v-.002z"></path>
+                    </g>
+                  </svg>
+                  <div
+                    id="clipboardSetterFile"
+                    class="uploader-footer-title"></div>
+                  <div style="width: 56px"></div>
+                </label>
+                <input
+                  id="uploader-file"
+                  type="file"
+                  class="input-file"
+                  data-clipboard-type="file"
+                  onchange="clipboardSetterUploaderChange(event)" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading... -->
+        <div class="spinner-container" id="loading">
+          <div class="spinner">
+            <div class="spinner1"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

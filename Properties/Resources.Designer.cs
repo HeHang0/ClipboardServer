@@ -79,5 +79,36 @@ namespace ClipboardServer.Properties {
                 return ((System.Drawing.Icon)(obj));
             }
         }
+        
+        /// <summary>
+        ///   查找类似 &lt;!DOCTYPE html&gt;
+        ///&lt;html&gt;
+        ///  &lt;head&gt;
+        ///    &lt;style&gt;
+        ///      :root {
+        ///        --background-color: 0, 0, 0;
+        ///        --background-color-second: 105, 126, 145;
+        ///        --font-color: #697e91;
+        ///      }
+        ///      html,
+        ///      body {
+        ///        width: 100%;
+        ///        height: 100%;
+        ///        margin: 0;
+        ///        background-color: rgb(var(--background-color));
+        ///      }
+        ///      body {
+        ///        overflow: auto;
+        ///        display: flex;
+        ///        align-items: center;
+        ///        justify-content: center;
+        ///      }
+        ///      .background-image { [字符串的其余部分被截断]&quot;; 的本地化字符串。
+        /// </summary>
+        internal static string index {
+            get {
+                return ResourceManager.GetString("index", resourceCulture);
+            }
+        }
     }
 }
