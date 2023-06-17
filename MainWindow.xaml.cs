@@ -4,7 +4,6 @@ using Microsoft.Win32;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Net;
@@ -13,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using Windows.Globalization;
 using WK.Libraries.WTL;
 using Clipboard = System.Windows.Forms.Clipboard;
 using Image = System.Drawing.Image;
@@ -218,16 +218,17 @@ namespace ClipboardServer
         MenuItem startupMenu;
         private void Init()
         {
+            var chinese = IsChinese();
             startupMenu = new MenuItem()
             {
-                Header = "Star",
+                Header = chinese ? "开机启动" : "Startup",
                 IsCheckable = true,
                 IsChecked = IsStartupEnabled()
             };
             startupMenu.Click += OnSetStartup;
             var exitMenu = new MenuItem()
             {
-                Header = "Exit"
+                Header = chinese ? "退出" : "Exit"
             };
             exitMenu.Click += Exit;
             notifyIcon = new TaskbarIcon()
@@ -236,15 +237,38 @@ namespace ClipboardServer
                 {
                     Items = { startupMenu, exitMenu }
                 },
-                ToolTipText = "Listen On " + HttpPort
+                ToolTipText = "Clipboard Server\n\n" + (chinese ? "监听端口：" : "Listen On ") + HttpPort
             };
+            SetMenuItemStyle(startupMenu);
+            SetMenuItemStyle(exitMenu);
             SetIcon();
             server.Start();
+        }
+
+        private bool IsChinese()
+        {
+            var languages = Windows.System.UserProfile.GlobalizationPreferences.Languages;
+            if (languages != null && languages.Count > 0)
+            {
+                var language = languages[0].ToLower();
+                if (language.Contains("zh") || language.Contains("cn")) return true;
+            }
+            return false;
         }
 
         private void Exit(object sender, EventArgs e)
         {
             Close();
+        }
+
+        private void SetMenuItemStyle(MenuItem menuItem)
+        {
+            menuItem.Height = 20;
+            menuItem.MinWidth = 105;
+            menuItem.FontSize = 12;
+            menuItem.VerticalContentAlignment = System.Windows.VerticalAlignment.Center;
+            menuItem.Margin = new Thickness(5, 0, 5, 0);
+            menuItem.Padding = new Thickness(5, 0, 5, 0);
         }
 
         private void OnSetStartup(object sender, EventArgs e)
