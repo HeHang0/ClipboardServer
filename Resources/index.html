@@ -2,6 +2,7 @@
 <html>
   <head>
     <meta http-equiv="content-type" content="text/html;charset=utf-8" />
+    <link rel="manifest" href="manifest.json" />
     <title>ClipboardServer</title>
     <style>
       :root {
@@ -10,6 +11,10 @@
         --font-color: #697e91;
         --text-color: white;
         --selected-color: #00f7e2;
+        --default-cursor: url(https://cdn.custom-cursor.com/db/cursor/32/Minion_with_Banana_Cursor.png),
+          default !important;
+        --pointer-cursor: url(https://cdn.custom-cursor.com/db/pointer/32/Evil_Minion_Pointer.png),
+          pointer !important;
       }
       html,
       body {
@@ -23,6 +28,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        cursor: var(--default-cursor);
       }
       .background-image {
         background-repeat: no-repeat;
@@ -105,7 +111,7 @@
         -webkit-user-select: none;
         touch-action: manipulation;
         white-space: nowrap;
-        cursor: pointer;
+        cursor: var(--pointer-cursor);
         transition: all 0.3s;
       }
 
@@ -137,7 +143,7 @@
         width: 100%;
         height: 0;
         margin-top: 0;
-        cursor: default;
+        cursor: var(--default-cursor);
         user-select: auto;
         font-size: unset;
         opacity: 0;
@@ -175,7 +181,7 @@
         background: transparent;
         color: white;
         outline: 0;
-        height: calc(100% - 6px);
+        height: calc(100% - 7px);
       }
       a {
         text-decoration: auto;
@@ -316,7 +322,7 @@
         border-radius: 6px;
         box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
         transition: 0.15s ease;
-        cursor: pointer;
+        cursor: var(--pointer-cursor);
         position: relative;
         margin: 3px;
         border: 0;
@@ -408,7 +414,7 @@
         align-items: center;
         justify-content: center;
         flex-direction: column;
-        cursor: pointer;
+        cursor: var(--pointer-cursor);
       }
 
       .uploader-header svg {
@@ -426,7 +432,7 @@
         height: 40px;
         padding: 8px;
         border-radius: 10px;
-        cursor: pointer;
+        cursor: var(--pointer-cursor);
         display: flex;
         align-items: center;
         justify-content: flex-end;
@@ -440,7 +446,7 @@
         background-color: rgba(70, 66, 66, 0.103);
         border-radius: 50%;
         padding: 2px;
-        cursor: pointer;
+        cursor: var(--pointer-cursor);
         box-shadow: 0 2px 30px rgba(0, 0, 0, 0.205);
       }
 
@@ -498,19 +504,21 @@
       /* use it in dark theme */
       .input-container {
         position: relative;
-        margin: 0 auto;
+        /* margin: 0 auto; */
         width: 245px;
       }
 
       .input-container input[type='text'] {
         font-size: 20px;
         border: none;
+        text-align: right;
         /* border-bottom: 2px solid #a5a2a2; */
         outline: none;
         width: calc(100% - 10px);
         background-color: transparent;
         padding: 0 10px;
         color: #5b42f3;
+        caret-color: #00ddeb;
         text-shadow: var(--font-color) 1px 1px 1px;
       }
       .input-container input[type='text']::after {
@@ -524,6 +532,10 @@
         top: 0;
         left: 0;
         pointer-events: none;
+      }
+
+      .input-container input[type='text']:focus {
+        text-align: left;
       }
 
       .input-container input[type='text']:focus ~ .label {
@@ -629,6 +641,40 @@
         const loading = document.getElementById('loading');
         loading.style.display = show ? 'flex' : 'none';
       }
+
+      function registerWorker() {
+        if (
+          'serviceWorker' in navigator &&
+          location.origin.startsWith('https')
+        ) {
+          navigator.serviceWorker.register('pwa-worker.js').then(function () {
+            console.log('Service Worker Registered');
+          });
+        }
+      }
+
+      function setFavicon(listen) {
+        var favicon = document.querySelector('link[rel="icon"]');
+        if (!favicon) {
+          favicon = document.createElement('link');
+          favicon.rel = 'icon';
+          favicon.type = 'image/x-icon';
+          document.head.appendChild(favicon);
+        }
+        const darkModeMediaQuery = window.matchMedia(
+          '(prefers-color-scheme: dark)'
+        );
+        if (darkModeMediaQuery.matches) {
+          favicon.href = 'clipboard-white.ico';
+        } else {
+          favicon.href = 'clipboard-black.ico';
+        }
+        if (listen) {
+          darkModeMediaQuery.addEventListener('change', setFavicon);
+        }
+      }
+      setFavicon(true);
+      registerWorker();
 
       function onServerAddressChange(event) {
         localStorage.setItem('clipboard-server-address', event.target.value);
@@ -898,7 +944,9 @@
   <body>
     <div class="background-image"></div>
     <div class="layout">
-      <div class="row" style="align-items: center">
+      <div
+        class="row"
+        style="align-items: center; justify-content: space-between">
         <p class="title">
           <span>Clipboard Server</span><span>Clipboard Server</span>
         </p>
@@ -919,7 +967,7 @@
         <!-- Get Clipboard -->
         <div class="container">
           <button style="width: 100%" onclick="getClipboard()">
-            <span class="text">获取剪贴板</span>
+            <span class="text">获取远程剪贴板</span>
           </button>
           <div id="clipboardTextContainer" class="component-layout">
             <div class="component-layout-body" style="cursor: text">
@@ -1029,7 +1077,7 @@
               </label>
             </div>
             <button onclick="setClipboard()">
-              <span class="text">设定剪贴板</span>
+              <span class="text">设定远程剪贴板</span>
             </button>
           </div>
           <div id="clipboardSetTextContainer" class="component-layout">
