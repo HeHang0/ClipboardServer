@@ -494,18 +494,122 @@
       ::-webkit-scrollbar-thumb:hover {
         background-color: #555; /* 鼠标悬停在滚动条上时的颜色 */
       }
+
+      /* use it in dark theme */
+      .input-container {
+        position: relative;
+        margin: 0 auto;
+        width: 245px;
+      }
+
+      .input-container input[type='text'] {
+        font-size: 20px;
+        border: none;
+        /* border-bottom: 2px solid #a5a2a2; */
+        outline: none;
+        width: calc(100% - 10px);
+        background-color: transparent;
+        padding: 0 10px;
+        color: #5b42f3;
+        text-shadow: var(--font-color) 1px 1px 1px;
+      }
+      .input-container input[type='text']::after {
+        text-shadow: black 1px 1px 1px;
+      }
+
+      .label {
+        transition: all 0.3s ease;
+        color: #d3d2d2;
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+      }
+
+      .input-container input[type='text']:focus ~ .label {
+        top: -20px;
+        transition: 0.3s;
+        color: #af40ff;
+      }
+
+      .input-container .underline {
+        position: absolute;
+        bottom: 4px;
+        left: -7px;
+        height: 2px;
+        width: 110%;
+        background: linear-gradient(144deg, #af40ff, #5b42f3 50%, #00ddeb);
+        transform: scaleX(0);
+      }
+
+      .input-container .sideline {
+        position: relative;
+        bottom: 15px;
+        right: 18px;
+        height: 2px;
+        width: 18%;
+        background: linear-gradient(144deg, #af40ff, #5b42f3 50%, #00ddeb);
+        transform: scaleX(0);
+        rotate: 90deg;
+      }
+
+      .input-container .upperline {
+        position: absolute;
+        bottom: 30px;
+        left: -8px;
+        height: 2px;
+        width: 110%;
+        background: linear-gradient(144deg, #af40ff, #5b42f3 50%, #00ddeb);
+        transform: scaleX(0);
+      }
+
+      .input-container .line {
+        position: relative;
+        bottom: 17px;
+        left: 228px;
+        height: 2px;
+        width: 18%;
+        background: linear-gradient(144deg, #af40ff, #5b42f3 50%, #00ddeb);
+        transform: scaleX(0);
+        rotate: 90deg;
+      }
+
+      .input-container input[type='text']:focus ~ .underline {
+        transform: scaleX(1);
+        transition: 1s;
+      }
+
+      .input-container input[type='text']:focus ~ .sideline {
+        transform: scaleX(1);
+        transition: 1s;
+      }
+
+      .input-container input[type='text']:focus ~ .upperline {
+        transform: scaleX(1);
+        transition: 1s;
+      }
+
+      .input-container input[type='text']:focus ~ .line {
+        transform: scaleX(1);
+        transition: 1s;
+      }
     </style>
     <script>
       const heightMap = JSON.parse(
-        localStorage.getItem('height-cache') || '{}'
+        localStorage.getItem('clipboard-server-height-cache') || '{}'
       );
       heightMap['clipboardFileContainer'] = '100px';
       let params = new URLSearchParams(location.search);
       const serverAddress =
-        decodeURIComponent(params.get('server')) ||
+        (params.get('server') && decodeURIComponent(params.get('server'))) ||
+        localStorage.getItem('clipboard-server-address') ||
         location.origin + location.pathname;
+      localStorage.setItem('clipboard-server-address', serverAddress);
       window.onbeforeunload = function () {
-        localStorage.setItem('height-cache', JSON.stringify(heightMap));
+        localStorage.setItem(
+          'clipboard-server-height-cache',
+          JSON.stringify(heightMap)
+        );
       };
       let currentClipboardType = '';
       let selectedFile = null;
@@ -518,11 +622,17 @@
           'url(https://www.dmoe.cc/random.php?233335556958)';
         document.getElementById('downloadClipboardFile').href =
           serverAddress + '/clipboard/file';
+        document.getElementById('serverAddress').value = serverAddress;
       };
 
       function setLoading(show) {
         const loading = document.getElementById('loading');
         loading.style.display = show ? 'flex' : 'none';
+      }
+
+      function onServerAddressChange(event) {
+        localStorage.setItem('clipboard-server-address', event.target.value);
+        serverAddress = event.target.value;
       }
 
       async function getClipboard() {
@@ -788,9 +898,23 @@
   <body>
     <div class="background-image"></div>
     <div class="layout">
-      <p class="title">
-        <span>Clipboard Server</span><span>Clipboard Server</span>
-      </p>
+      <div class="row" style="align-items: center">
+        <p class="title">
+          <span>Clipboard Server</span><span>Clipboard Server</span>
+        </p>
+        <div class="input-container">
+          <input
+            id="serverAddress"
+            type="text"
+            autocomplete="off"
+            onchange="onServerAddressChange(event)" />
+          <label class="label" for="input"> </label>
+          <div class="underline"></div>
+          <div class="sideline"></div>
+          <div class="upperline"></div>
+          <div class="line"></div>
+        </div>
+      </div>
       <div class="inner">
         <!-- Get Clipboard -->
         <div class="container">
