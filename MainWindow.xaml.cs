@@ -1,7 +1,6 @@
 ﻿using Hardcodet.Wpf.TaskbarNotification;
 using HttpServerLite;
 using Microsoft.Win32;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Drawing.Imaging;
@@ -12,39 +11,28 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using WK.Libraries.WTL;
+using System.Text.Json;
+using System.Windows.Interop;
+using System.Windows.Media.Imaging;
+using System.Diagnostics;
 using Clipboard = System.Windows.Forms.Clipboard;
 using Image = System.Drawing.Image;
 
 namespace ClipboardServer
 {
-    public static class HttpRequestHelper
-    {
-        public static Dictionary<string, string> DataAsForm(this HttpRequest request)
-        {
-            Dictionary<string, string> result = new Dictionary<string, string>();
-            string[] kvArr = request.DataAsString.Split(new char[] { '&' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var kv in kvArr)
-            {
-                string[] kvItem = kv.Split(new char[] { '=' }, StringSplitOptions.RemoveEmptyEntries);
-                if (kvItem != null && kvItem.Length == 2)
-                {
-                    result.Add(kvItem[0], kvItem[1]);
-                }
-            }
-            return result;
-        }
-    }
     /// <summary>
     /// MainWindow.xaml 的交互逻辑
     /// </summary>
     public partial class MainWindow : Window
     {
-        private static string AppName = "ClipboardServer";
-        private static int HttpPort = 37259;
-        private static readonly int MaxDataLength = 10485760;
-        private static byte[] favicon;
-        Webserver server = new Webserver("*", HttpPort, false, null, null, ClipboardIndex);
+        private static readonly string APP_MANE = "ClipboardServer";
+        private static readonly int MAX_DATA_LENGTH = 10485760;
+        private static int HTTP_PORT = 37259;
+        private static byte[] faviconLight;
+        private static byte[] faviconDark;
+        private static Webserver webServer;
+        private static TaskbarIcon notifyIcon;
+        private MenuItem startupMenu;
         public MainWindow()
         {
             InitializeComponent();
@@ -56,10 +44,151 @@ namespace ClipboardServer
             using (MemoryStream ms = new MemoryStream())
             {
                 Properties.Resources.clipboard_black.Save(ms);
-                favicon = ms.ToArray();
+                faviconDark = ms.ToArray();
+            }
+            using (MemoryStream ms = new MemoryStream())
+            {
+                Properties.Resources.clipboard_white.Save(ms);
+                faviconLight = ms.ToArray();
             }
         }
 
+        private void ClipboardServerSourceInitialized(object sender, EventArgs e)
+        {
+            var listener = new ThemeListener(this);
+            listener.ThemeChanged += ThemeSettingsChanged;
+            Visibility = Visibility.Hidden;
+            Hide();
+            Init();
+        }
+
+        private void Init()
+        {
+            CopyRightYear.Content = DateTime.Now.Year;
+            var chinese = IsChinese();
+            startupMenu = new MenuItem()
+            {
+                Header = chinese ? "开机启动" : "Startup",
+                IsCheckable = true,
+                IsChecked = IsStartupEnabled()
+            };
+            startupMenu.Click += OnSetStartup;
+            var exitMenu = new MenuItem()
+            {
+                Header = chinese ? "退出" : "Exit"
+            };
+            exitMenu.Click += Exit;
+            var aboutMenu = new MenuItem()
+            {
+                Header = chinese ? "关于" : "About"
+            };
+            aboutMenu.Click += ShowWindow;
+            notifyIcon = new TaskbarIcon()
+            {
+                ContextMenu = new ContextMenu()
+                {
+                    Items = { aboutMenu, startupMenu, exitMenu }
+                },
+                ToolTipText = "Clipboard Server\n\n" + (chinese ? "监听端口：" : "Listen On ") + HTTP_PORT,
+                MenuActivation = PopupActivationMode.RightClick
+            };
+            SetMenuItemStyle();
+            SetIcon(ThemeHelper.GetWindowsTheme());
+            InitWebServer();
+        }
+
+        private void ShowWindow(object sender, EventArgs e)
+        {
+            Show();
+            Activate();
+        }
+
+        private void InitWebServer()
+        {
+            webServer = new Webserver("+", HTTP_PORT, false, null, null, ClipboardIndex);
+            webServer.Events.Logger = WebServerLogger;
+            webServer.Start();
+        }
+
+        private void WebServerLogger(string msg)
+        {
+            Console.WriteLine(msg);
+        }
+
+        private bool IsChinese()
+        {
+            var languages = Windows.System.UserProfile.GlobalizationPreferences.Languages;
+            if (languages != null && languages.Count > 0)
+            {
+                var language = languages[0].ToLower();
+                if (language.Contains("zh") || language.Contains("cn")) return true;
+            }
+            return false;
+        }
+
+        private void Exit(object sender, EventArgs e)
+        {
+            notifyIcon.Dispose();
+            Application.Current.Shutdown();
+        }
+
+        private void SetMenuItemStyle()
+        {
+            foreach (MenuItem menuItem in notifyIcon.ContextMenu.Items)
+            {
+                menuItem.Height = 20;
+                menuItem.MinWidth = 105;
+                menuItem.FontSize = 12;
+                menuItem.VerticalContentAlignment = System.Windows.VerticalAlignment.Center;
+                menuItem.Margin = new Thickness(5, 0, 5, 0);
+                menuItem.Padding = new Thickness(5, 0, 5, 0);
+            }
+        }
+
+        private void OnSetStartup(object sender, EventArgs e)
+        {
+            string keyName = @"Software\Microsoft\Windows\CurrentVersion\Run";
+            using (RegistryKey rKey = Registry.CurrentUser.OpenSubKey(keyName, true))
+            {
+                if (startupMenu.IsChecked)
+                {
+                    rKey.SetValue(APP_MANE, System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName);
+                }
+                else
+                {
+                    rKey.DeleteValue(APP_MANE, false);
+                }
+                rKey.Close();
+            }
+        }
+
+        private bool IsStartupEnabled()
+        {
+            string keyName = @"Software\Microsoft\Windows\CurrentVersion\Run";
+            using (RegistryKey rKey = Registry.CurrentUser.OpenSubKey(keyName))
+            {
+                return rKey.GetValue(APP_MANE) != null;
+            }
+        }
+
+        private void SetIcon(WindowsTheme systemTheme)
+        {
+            notifyIcon.ContextMenu.UpdateDefaultStyle();
+            if (systemTheme == WindowsTheme.Dark)
+            {
+                notifyIcon.Icon = Properties.Resources.clipboard_white;
+            }
+            else
+            {
+                notifyIcon.Icon = Properties.Resources.clipboard_black;
+            }
+            AboutLogo.Source = Imaging.CreateBitmapSourceFromHIcon(
+                notifyIcon.Icon.Handle,
+                Int32Rect.Empty,
+                BitmapSizeOptions.FromEmptyOptions());
+        }
+
+        #region Router
         public static async Task ClipboardIndex(HttpContext ctx)
         {
 #if DEBUG
@@ -76,7 +205,7 @@ namespace ClipboardServer
         {
             ctx.Response.StatusCode = (int)HttpStatusCode.OK;
             ctx.Response.ContentType = "image/x-icon";
-            await ctx.Response.SendAsync(favicon);
+            await ctx.Response.SendAsync(ctx.Request.QuerystringExists("dark") ? faviconDark : faviconLight);
             return;
         }
 
@@ -90,7 +219,7 @@ namespace ClipboardServer
                 reponse.Add("image", Clipboard.ContainsImage());
                 reponse.Add("file", Clipboard.ContainsFileDropList());
             });
-            string resp = JsonConvert.SerializeObject(reponse);
+            string resp = JsonSerializer.Serialize(reponse);
             await sendString(ctx, resp, "application/json");
             return;
         }
@@ -110,7 +239,7 @@ namespace ClipboardServer
         [ParameterRoute(HttpMethod.PUT, "/clipboard")]
         public static async Task PutClipboard(HttpContext ctx)
         {
-            if(ctx.Request.ContentLength > MaxDataLength)
+            if(ctx.Request.ContentLength > MAX_DATA_LENGTH)
             {
                 await sendString(ctx, "Too Large Size");
                 return;
@@ -145,29 +274,6 @@ namespace ClipboardServer
             return;
         }
 
-        private static Image IsValidImage(byte[] bytes)
-        {
-            try
-            {
-                using (MemoryStream ms = new MemoryStream(bytes))
-                return Image.FromStream(ms);
-            }
-            catch (ArgumentException)
-            {
-            }
-            return null;
-        }
-
-        private static async Task sendString(HttpContext ctx, string msg, string contentType= "text/plain;charset=utf-8")
-        {
-            ctx.Response.StatusCode = (int)HttpStatusCode.OK;
-            ctx.Response.ContentType = contentType;
-            var data = Encoding.UTF8.GetBytes(msg);
-            ctx.Response.ContentLength = data.Length;
-            await ctx.Response.SendAsync(data);
-            return;
-        }
-
         [ParameterRoute(HttpMethod.GET, "/clipboard/image")]
         public static async Task ClipboardImage(HttpContext ctx)
         {
@@ -176,7 +282,7 @@ namespace ClipboardServer
             RunAsSTA(() =>
             {
                 var dataObject = Clipboard.GetDataObject();
-                if(dataObject != null && dataObject.GetFormats().Length > 0)
+                if (dataObject != null && dataObject.GetFormats().Length > 0)
                 {
                     format = dataObject.GetFormats()[0];
                     if (format.ToLower().Contains("bitmap"))
@@ -193,7 +299,7 @@ namespace ClipboardServer
                     }
                 }
             });
-            
+
             if (imageSrc == null)
             {
                 ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
@@ -217,7 +323,7 @@ namespace ClipboardServer
             RunAsSTA(() =>
             {
                 var files = Clipboard.GetFileDropList();
-                if(files != null && files.Count > 0) clipboardFile = files[0];
+                if (files != null && files.Count > 0) clipboardFile = files[0];
             });
 
             if (clipboardFile == null)
@@ -239,6 +345,30 @@ namespace ClipboardServer
             }
             return;
         }
+        #endregion
+
+        private static Image IsValidImage(byte[] bytes)
+        {
+            try
+            {
+                using (MemoryStream ms = new MemoryStream(bytes))
+                return Image.FromStream(ms);
+            }
+            catch (ArgumentException)
+            {
+            }
+            return null;
+        }
+
+        private static async Task sendString(HttpContext ctx, string msg, string contentType= "text/plain;charset=utf-8")
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.OK;
+            ctx.Response.ContentType = contentType;
+            var data = Encoding.UTF8.GetBytes(msg);
+            ctx.Response.ContentLength = data.Length;
+            await ctx.Response.SendAsync(data);
+            return;
+        }
 
         private static void RunAsSTA(Action threadStart)
         {
@@ -254,133 +384,19 @@ namespace ClipboardServer
 
             }
         }
-        MenuItem startupMenu;
-        private void Init()
+
+        private void ThemeSettingsChanged(WindowsTheme theme)
         {
-            var chinese = IsChinese();
-            startupMenu = new MenuItem()
+            Dispatcher.Invoke((Action)(() =>
             {
-                Header = chinese ? "开机启动" : "Startup",
-                IsCheckable = true,
-                IsChecked = IsStartupEnabled()
-            };
-            startupMenu.Click += OnSetStartup;
-            var exitMenu = new MenuItem()
-            {
-                Header = chinese ? "退出" : "Exit"
-            };
-            exitMenu.Click += Exit;
-            notifyIcon = new TaskbarIcon()
-            {
-                ContextMenu = new ContextMenu()
-                {
-                    Items = { startupMenu, exitMenu }
-                },
-                ToolTipText = "Clipboard Server\n\n" + (chinese ? "监听端口：" : "Listen On ") + HttpPort
-            };
-            SetMenuItemStyle(startupMenu);
-            SetMenuItemStyle(exitMenu);
-            SetIcon();
-            server.Start();
+                SetIcon(theme);
+            }));
         }
 
-        private bool IsChinese()
-        {
-            var languages = Windows.System.UserProfile.GlobalizationPreferences.Languages;
-            if (languages != null && languages.Count > 0)
-            {
-                var language = languages[0].ToLower();
-                if (language.Contains("zh") || language.Contains("cn")) return true;
-            }
-            return false;
-        }
-
-        private void Exit(object sender, EventArgs e)
-        {
-            Close();
-        }
-
-        private void SetMenuItemStyle(MenuItem menuItem)
-        {
-            menuItem.Height = 20;
-            menuItem.MinWidth = 105;
-            menuItem.FontSize = 12;
-            menuItem.VerticalContentAlignment = System.Windows.VerticalAlignment.Center;
-            menuItem.Margin = new Thickness(5, 0, 5, 0);
-            menuItem.Padding = new Thickness(5, 0, 5, 0);
-        }
-
-        private void OnSetStartup(object sender, EventArgs e)
-        {
-            string keyName = @"Software\Microsoft\Windows\CurrentVersion\Run";
-            using (RegistryKey rKey = Registry.CurrentUser.OpenSubKey(keyName, true))
-            {
-                if (startupMenu.IsChecked)
-                {
-                    rKey.SetValue(AppName, System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName);
-                }
-                else
-                {
-                    rKey.DeleteValue(AppName, false);
-                }
-                rKey.Close();
-            }
-        }
-
-        private bool IsStartupEnabled()
-        {
-            string keyName = @"Software\Microsoft\Windows\CurrentVersion\Run";
-            using (RegistryKey rKey = Registry.CurrentUser.OpenSubKey(keyName))
-            {
-                return rKey.GetValue(AppName) != null;
-            }
-        }
-        
-        private void SetIcon()
-        {
-            notifyIcon.ContextMenu.UpdateDefaultStyle();
-            WindowsTheme systemTheme = ThemeHelper.GetWindowsTheme();
-            if (systemTheme == WindowsTheme.Dark)
-            {
-                notifyIcon.Icon = Properties.Resources.clipboard_white;
-            }
-            else
-            {
-                notifyIcon.Icon = Properties.Resources.clipboard_black;
-            }
-        }
-
-        private void ClipboardServerSourceInitialized(object sender, EventArgs e)
-        {
-            ThemeListener.Enabled = true;
-            ThemeListener.ThemeSettingsChanged += ThemeSettingsChanged;
-            Visibility = Visibility.Hidden;
-            Hide();
-            Init();
-        }
-
-        private void ThemeSettingsChanged(object sender, ThemeListener.ThemeSettingsChangedEventArgs e)
-        {
-            SetIcon();
-        }
-
-        private TaskbarIcon notifyIcon;
         private void ClipboardServerClosing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            notifyIcon.Dispose();
-        }
-
-        const int WM_DWMCOLORIZATIONCOLORCHANGED = 0x320;
-        IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-        {
-            switch (msg)
-            {
-                case WM_DWMCOLORIZATIONCOLORCHANGED:
-                    SetIcon();
-                    return IntPtr.Zero;
-                default:
-                    return IntPtr.Zero;
-            }
+            e.Cancel = true;
+            Hide();
         }
 
         public enum WindowsTheme
@@ -420,6 +436,12 @@ namespace ClipboardServer
                 }
                 return WindowsTheme.Light;
             }
+        }
+
+        private void OpenGithub(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            string githubUrl = "https://github.com/hehang0/" + APP_MANE;
+            Process.Start(new ProcessStartInfo(githubUrl) { UseShellExecute = true });
         }
     }
 }

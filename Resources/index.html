@@ -11,6 +11,13 @@
         --font-color: #697e91;
         --text-color: white;
         --selected-color: #00f7e2;
+        --button-background-color: #05062dbb;
+        --button-border-color: linear-gradient(
+          144deg,
+          #af40ffcc,
+          #5b42f3cc 50%,
+          #00ddebcc
+        );
         --default-cursor: url(https://cdn.custom-cursor.com/db/cursor/32/Minion_with_Banana_Cursor.png),
           default !important;
         --pointer-cursor: url(https://cdn.custom-cursor.com/db/pointer/32/Evil_Minion_Pointer.png),
@@ -68,10 +75,9 @@
         border: 1px solid rgb(var(--background-color-second));
         border-radius: 6px;
         box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.05);
-        background: rgba(var(--background-color), 0.58);
+        background: rgba(var(--background-color), 0.4);
         text-shadow: #000 1px 1px 1px;
         color: #00f1ff;
-        min-height: 500px;
         position: relative;
       }
       .container {
@@ -87,12 +93,7 @@
       button,
       .component-layout {
         align-items: center;
-        background-image: linear-gradient(
-          144deg,
-          #af40ff,
-          #5b42f3 50%,
-          #00ddeb
-        );
+        background-image: var(--button-border-color);
         border: 0;
         border-radius: 8px;
         box-shadow: rgba(151, 65, 252, 0.2) 0 15px 30px -5px;
@@ -113,6 +114,7 @@
         white-space: nowrap;
         cursor: var(--pointer-cursor);
         transition: all 0.3s;
+        background-color: transparent;
       }
 
       button:active,
@@ -121,7 +123,7 @@
       }
 
       button span {
-        background-color: rgb(5, 6, 45);
+        background-color: var(--button-background-color);
         border-radius: 6px;
         width: 100%;
         height: 100%;
@@ -150,7 +152,7 @@
         padding: 0;
       }
       .component-layout > .component-layout-body {
-        background-color: rgb(5, 6, 45);
+        background-color: var(--button-background-color);
         padding: 10px;
         border-radius: 6px;
         width: 100%;
@@ -264,15 +266,11 @@
       }
 
       .radio-inputs > label {
-        background-image: linear-gradient(
-          144deg,
-          #af40ff,
-          #5b42f3 50%,
-          #00ddeb
-        );
+        background-image: var(--button-border-color);
         box-shadow: rgba(151, 65, 252, 0.2) 0 15px 30px -5px;
         box-sizing: border-box;
         border-radius: 8px;
+        flex: 1;
         /* width: 100px; */
       }
 
@@ -318,7 +316,7 @@
         justify-content: center;
         width: calc(100% - 6px);
         /* min-height: 80px; */
-        background-color: rgb(5, 6, 45);
+        background-color: var(--button-background-color);;
         border-radius: 6px;
         box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
         transition: 0.15s ease;
@@ -612,7 +610,7 @@
       );
       heightMap['clipboardFileContainer'] = '100px';
       let params = new URLSearchParams(location.search);
-      const serverAddress =
+      let serverAddress =
         (params.get('server') && decodeURIComponent(params.get('server'))) ||
         localStorage.getItem('clipboard-server-address') ||
         location.origin + location.pathname;
@@ -635,6 +633,7 @@
         document.getElementById('downloadClipboardFile').href =
           serverAddress + '/clipboard/file';
         document.getElementById('serverAddress').value = serverAddress;
+        if(!navigator.clipboard) document.getElementById("readClipboard").remove()
       };
 
       function setLoading(show) {
@@ -652,7 +651,6 @@
           });
         }
       }
-
       function setFavicon(listen) {
         var favicon = document.querySelector('link[rel="icon"]');
         if (!favicon) {
@@ -664,6 +662,14 @@
         const darkModeMediaQuery = window.matchMedia(
           '(prefers-color-scheme: dark)'
         );
+        const darkMode = darkModeMediaQuery.matches
+        fetch('favicon.ico', { method: 'HEAD', })
+        .then(response => {
+            favicon.href = `favicon.ico${darkMode ? '' : '?dark'}`;
+        })
+        .catch(error => {
+            favicon.href = `clipboard-${darkMode ? 'white' : 'black'}.ico`;
+        });
         if (darkModeMediaQuery.matches) {
           favicon.href = 'clipboard-white.ico';
         } else {
@@ -701,6 +707,7 @@
             setClipBoardFile();
           }
         } catch (error) {
+          processFetchError(error)
           console.log('get clipboard err: ', error);
         }
         setLoading(false);
@@ -745,10 +752,18 @@
             });
             await res.text();
           }
-        } catch (err) {
-          console.log(err);
+        } catch (error) {
+          processFetchError(error)
+          console.log("set clipboard err: ", error);
         }
         setLoading(false);
+      }
+
+      function processFetchError(error) {
+        if(!error || error.name !== 'TypeError') return;
+        if(serverAddress.startsWith("http") && !serverAddress.startsWith(location.protocol)) {
+          location.href = serverAddress
+        }
       }
 
       function setClipBoardText(text) {
@@ -794,7 +809,8 @@
               clipBoardFile,
               clipBoardFile.type.startsWith('image') ? 'image' : 'file'
             );
-          } else if (currentClipboardType !== 'text') {
+          } else {
+            if (currentClipboardType === 'text' && document.getElementById("clipboardSetterText").value) return
             clipboardData.getAsString(function (data) {
               if (!data) return;
               onClipboardSetterChange('text', data);
@@ -970,8 +986,8 @@
             <span class="text">获取远程剪贴板</span>
           </button>
           <div id="clipboardTextContainer" class="component-layout">
-            <div class="component-layout-body" style="cursor: text">
-              <pre><code id="clipboardText"></code></pre>
+            <div class="component-layout-body">
+              <pre><code id="clipboardText" style="cursor: text;"></code></pre>
             </div>
           </div>
           <div id="clipboardImageContainer" class="component-layout">
@@ -1068,7 +1084,7 @@
                   </span>
                 </span>
               </label>
-              <label style="flex: 1">
+              <label id="readClipboard">
                 <button
                   onclick="readClipboard()"
                   style="min-width: 120px; width: 100%">
