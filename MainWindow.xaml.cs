@@ -15,6 +15,7 @@ using System.Text.Json;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 using System.Diagnostics;
+using MimeMapping;
 using Clipboard = System.Windows.Forms.Clipboard;
 using Image = System.Drawing.Image;
 
@@ -236,44 +237,6 @@ namespace ClipboardServer
             return;
         }
 
-        [ParameterRoute(HttpMethod.PUT, "/clipboard")]
-        public static async Task PutClipboard(HttpContext ctx)
-        {
-            if(ctx.Request.ContentLength > MAX_DATA_LENGTH)
-            {
-                await sendString(ctx, "Too Large Size");
-                return;
-            }
-            var contentType = ctx.Request.Headers.Get("Content-Type").ToLower();
-            if (contentType.StartsWith("file"))
-            {
-                await sendString(ctx, "Unsupported type");
-                return;
-            }
-            Image image = IsValidImage(ctx.Request.DataAsBytes);
-            if (image != null)
-            {
-                RunAsSTA(() =>
-                {
-                    Clipboard.SetImage(image);
-                });
-            }
-            else
-            {
-                string text = Encoding.UTF8.GetString(ctx.Request.DataAsBytes);
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    RunAsSTA(() =>
-                    {
-                        Clipboard.SetText(text);
-                    });
-                }
-            }
-
-            await sendString(ctx, "OK");
-            return;
-        }
-
         [ParameterRoute(HttpMethod.GET, "/clipboard/image")]
         public static async Task ClipboardImage(HttpContext ctx)
         {
@@ -345,6 +308,77 @@ namespace ClipboardServer
             }
             return;
         }
+
+        [ParameterRoute(HttpMethod.PUT, "/clipboard")]
+        public static async Task PutClipboard(HttpContext ctx)
+        {
+            if (ctx.Request.ContentLength > MAX_DATA_LENGTH)
+            {
+                await sendString(ctx, "Too Large Size", statusCode: (int)HttpStatusCode.NotAcceptable);
+                return;
+            }
+            var contentType = ctx.Request.Headers.Get("Content-Type")?.ToLower() ?? string.Empty;
+            if (contentType.StartsWith("text"))
+            {
+                string text = Encoding.UTF8.GetString(ctx.Request.DataAsBytes);
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    RunAsSTA(() =>
+                    {
+                        Clipboard.SetText(text);
+                    });
+                }
+            }
+            else if (contentType.StartsWith("image"))
+            {
+                Image image = IsValidImage(ctx.Request.DataAsBytes);
+                if (image != null)
+                {
+                    RunAsSTA(() =>
+                    {
+                        Clipboard.SetImage(image);
+                    });
+                }
+            }
+            else
+            {
+                var contentName = ctx.Request.Headers.Get("Content-Name");
+                if (contentName != null && contentName.Length > 0)
+                {
+                    contentName = Uri.UnescapeDataString(contentName);
+                }
+                else
+                {
+                    try
+                    {
+                        var extensions = MimeUtility.GetExtensions(contentType);
+                        contentName = "Unnamed." + extensions[0];
+                    }
+                    catch (Exception)
+                    {
+                        contentName = "UnnamedFile";
+                    }
+                }
+                var filePath = Path.Combine(Path.GetTempPath(), contentName);
+                try
+                {
+                    File.WriteAllBytes(filePath, ctx.Request.DataAsBytes);
+                    RunAsSTA(() =>
+                    {
+                        var fileList = new System.Collections.Specialized.StringCollection() { filePath };
+                        Clipboard.SetFileDropList(fileList);
+                    });
+                }
+                catch (Exception)
+                {
+                }
+                await sendString(ctx, "OK");
+                return;
+            }
+
+            await sendString(ctx, "OK");
+            return;
+        }
         #endregion
 
         private static Image IsValidImage(byte[] bytes)
@@ -360,9 +394,9 @@ namespace ClipboardServer
             return null;
         }
 
-        private static async Task sendString(HttpContext ctx, string msg, string contentType= "text/plain;charset=utf-8")
+        private static async Task sendString(HttpContext ctx, string msg, string contentType= "text/plain;charset=utf-8", int statusCode= (int)HttpStatusCode.OK)
         {
-            ctx.Response.StatusCode = (int)HttpStatusCode.OK;
+            ctx.Response.StatusCode = statusCode;
             ctx.Response.ContentType = contentType;
             var data = Encoding.UTF8.GetBytes(msg);
             ctx.Response.ContentLength = data.Length;

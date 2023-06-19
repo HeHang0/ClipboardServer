@@ -8,6 +8,8 @@
       :root {
         --background-color: 0, 0, 0;
         --background-color-second: 105, 126, 145;
+        --background-color-rgb: rgb(0, 0, 0);
+        --background-color-second: rgb(105, 126, 145);
         --font-color: #697e91;
         --text-color: white;
         --selected-color: #00f7e2;
@@ -316,7 +318,7 @@
         justify-content: center;
         width: calc(100% - 6px);
         /* min-height: 80px; */
-        background-color: var(--button-background-color);;
+        background-color: var(--button-background-color);
         border-radius: 6px;
         box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
         transition: 0.15s ease;
@@ -478,27 +480,6 @@
           width: 100%;
         }
       }
-
-      /* 暗色模式下的滚动条样式 */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-
-      ::-webkit-scrollbar-track {
-        background-color: #2f2f2f; /* 滚动条轨道的颜色 */
-        border-radius: 4px; /* 滚动条轨道的圆角 */
-      }
-
-      ::-webkit-scrollbar-thumb {
-        background-color: #666; /* 滚动条的颜色 */
-        border-radius: 4px; /* 滚动条的圆角 */
-      }
-
-      ::-webkit-scrollbar-thumb:hover {
-        background-color: #555; /* 鼠标悬停在滚动条上时的颜色 */
-      }
-
       /* use it in dark theme */
       .input-container {
         position: relative;
@@ -603,6 +584,60 @@
         transform: scaleX(1);
         transition: 1s;
       }
+
+      .message-card {
+        position: fixed;
+        top: 0;
+        left: 50%;
+        transform: translate(-50%, -100%) scale(0);
+        width: max-content;
+        height: max-content;
+        background-image: var(--button-border-color);
+        border-radius: 8px;
+        transition: all 1s;
+        opacity: 0;
+      }
+
+      .message-card-body {
+        width: auto;
+        height: auto;
+        min-width: 120px;
+        min-height: 20px;
+        background-color: var(--button-background-color);
+        border-radius: 8px;
+        transition: all 1s;
+        padding: 10px 20px;
+      }
+
+      .message-card.message-card-show {
+        box-shadow: 0px 0px 30px 1px rgba(0, 255, 117, 0.3);
+        transform: translate(-50%, 100%) scale(1);
+        opacity: 1;
+      }
+
+      .message-card.message-card-show > .message-card-body {
+        transform: scale(0.9);
+      }
+
+      /* 暗色模式下的滚动条样式 */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background-color: #2f2f2f; /* 滚动条轨道的颜色 */
+        border-radius: 4px; /* 滚动条轨道的圆角 */
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background-color: #666; /* 滚动条的颜色 */
+        border-radius: 4px; /* 滚动条的圆角 */
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: #555; /* 鼠标悬停在滚动条上时的颜色 */
+      }
     </style>
     <script>
       const heightMap = JSON.parse(
@@ -633,7 +668,8 @@
         document.getElementById('downloadClipboardFile').href =
           serverAddress + '/clipboard/file';
         document.getElementById('serverAddress').value = serverAddress;
-        if(!navigator.clipboard) document.getElementById("readClipboard").remove()
+        if (!navigator.clipboard)
+          document.getElementById('readClipboard').remove();
       };
 
       function setLoading(show) {
@@ -662,19 +698,20 @@
         const darkModeMediaQuery = window.matchMedia(
           '(prefers-color-scheme: dark)'
         );
-        const darkMode = darkModeMediaQuery.matches
-        fetch('favicon.ico', { method: 'HEAD', })
-        .then(response => {
-            favicon.href = `favicon.ico${darkMode ? '' : '?dark'}`;
-        })
-        .catch(error => {
-            favicon.href = `clipboard-${darkMode ? 'white' : 'black'}.ico`;
-        });
-        if (darkModeMediaQuery.matches) {
-          favicon.href = 'clipboard-white.ico';
-        } else {
-          favicon.href = 'clipboard-black.ico';
-        }
+        const darkMode = darkModeMediaQuery.matches;
+        let faviconOK = false;
+        fetch('favicon.ico', { method: 'HEAD' })
+          .then(response => {
+            faviconOK = response.status === 200;
+          })
+          .catch(error => {})
+          .finally(() => {
+            if (faviconOK) {
+              favicon.href = `favicon.ico${darkMode ? '' : '?dark'}`;
+            } else {
+              favicon.href = `clipboard-${darkMode ? 'white' : 'black'}.ico`;
+            }
+          });
         if (listen) {
           darkModeMediaQuery.addEventListener('change', setFavicon);
         }
@@ -692,7 +729,6 @@
         try {
           const types = await fetch(serverAddress + '/clipboard/type');
           const typesRes = await types.json();
-          //{"text":true,"image":false,"audio":false,"file":false}
           if (typesRes.text) {
             const textResponse = await fetch(serverAddress + '/clipboard/text');
             const text = await textResponse.text();
@@ -707,33 +743,35 @@
             setClipBoardFile();
           }
         } catch (error) {
-          processFetchError(error)
+          processFetchError(error);
           console.log('get clipboard err: ', error);
+          showMessage(
+            '获取远程剪贴板失败\n' + `${(error && error.message) || ''}`
+          );
         }
         setLoading(false);
       }
 
       async function setClipboard() {
+        setLoading(true);
         switch (currentClipboardType) {
           case 'text':
             data = document.getElementById('clipboardSetterText').value;
-            setLoading(true);
             setClipboardRequest(data);
             break;
           case 'image':
           case 'file':
             const file =
               currentClipboardType == 'image' ? selectedImage : selectedFile;
-            if (!file || file.size > 10485760) return;
-            let reader = new FileReader();
-            setLoading(true);
-            reader.onload = function () {
-              setClipboardRequest(reader.result);
-            };
-            reader.onerror = function () {
+            if (file && file.size <= 10485760) {
+              setClipboardRequest(file);
+            } else {
               setLoading(false);
-            };
-            reader.readAsArrayBuffer(file);
+              showMessage(
+                (currentClipboardType == 'image' ? '图片' : '文件') +
+                  '大小必须小于10MB'
+              );
+            }
             break;
         }
       }
@@ -741,28 +779,44 @@
       async function setClipboardRequest(data) {
         try {
           if (data) {
+            const headers = {};
+            if (currentClipboardType == 'file') {
+              headers['Content-Name'] = encodeURIComponent(
+                document.getElementById('clipboardSetterFile').innerText
+              );
+            }
+            headers['Content-Type'] = currentClipboardType;
             const res = await fetch(serverAddress + '/clipboard', {
               method: 'PUT',
-              headers: {
-                'Content-Type': currentClipboardType,
-                'Content-Name': document.getElementById('clipboardSetterFile')
-                  .innerText
-              },
+              headers: headers,
               body: data
             });
             await res.text();
+            showMessage('设定远程剪贴板成功');
+          } else {
+            showMessage('设定内容不能为空');
           }
         } catch (error) {
-          processFetchError(error)
-          console.log("set clipboard err: ", error);
+          processFetchError(error);
+          console.log('set clipboard err: ', error);
+          showMessage(
+            '设置远程剪贴板失败\n' + `${(error && error.message) || ''}`
+          );
         }
         setLoading(false);
       }
 
       function processFetchError(error) {
-        if(!error || error.name !== 'TypeError') return;
-        if(serverAddress.startsWith("http") && !serverAddress.startsWith(location.protocol)) {
-          location.href = serverAddress
+        if (!error || error.name !== 'TypeError') return;
+        if (
+          serverAddress.startsWith('http') &&
+          !serverAddress.startsWith(location.protocol)
+        ) {
+          fetch(serverAddress, { method: 'HEAD' })
+            .then(response => {
+              if (response.status === 200) location.href = serverAddress;
+            })
+            .catch(() => {});
         }
       }
 
@@ -810,7 +864,11 @@
               clipBoardFile.type.startsWith('image') ? 'image' : 'file'
             );
           } else {
-            if (currentClipboardType === 'text' && document.getElementById("clipboardSetterText").value) return
+            if (
+              currentClipboardType === 'text' &&
+              document.getElementById('clipboardSetterText').value
+            )
+              return;
             clipboardData.getAsString(function (data) {
               if (!data) return;
               onClipboardSetterChange('text', data);
@@ -845,6 +903,9 @@
           }
         } catch (error) {
           console.log('get clipboard err', error);
+          showMessage(
+            '读取本地剪贴板失败\n' + `${(error && error.message) || ''}`
+          );
         }
         setLoading(false);
       }
@@ -954,6 +1015,22 @@
         componentContainer.style.zIndex = zIndex;
         componentContainer.style.resize = resize;
         componentContainer.children[0].style.padding = childPadding;
+      }
+
+      let messageCardTimeout;
+      const MESSAGE_CARD_SHOW = 'message-card-show';
+      function showMessage(msg) {
+        if (!msg) return;
+        const messageCard = document.getElementById('messageCard');
+        const messageCardBody = messageCard.children[0];
+        clearTimeout(messageCardTimeout);
+        messageCardBody.innerText = msg;
+        if (!messageCard.classList.contains(MESSAGE_CARD_SHOW)) {
+          messageCard.classList.add(MESSAGE_CARD_SHOW);
+        }
+        messageCardTimeout = setTimeout(() => {
+          messageCard.classList.remove(MESSAGE_CARD_SHOW);
+        }, 5000);
       }
     </script>
   </head>
@@ -1084,7 +1161,7 @@
                   </span>
                 </span>
               </label>
-              <label id="readClipboard">
+              <label id="readClipboard" style="background-image: none">
                 <button
                   onclick="readClipboard()"
                   style="min-width: 120px; width: 100%">
@@ -1191,6 +1268,11 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- Message Box -->
+        <div class="message-card" id="messageCard">
+          <div class="message-card-body"></div>
         </div>
 
         <!-- Loading... -->
