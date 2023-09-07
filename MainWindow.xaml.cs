@@ -1,5 +1,4 @@
-﻿using Hardcodet.Wpf.TaskbarNotification;
-using HttpServerLite;
+﻿using HttpServerLite;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
@@ -10,14 +9,15 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 using System.Text.Json;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 using System.Diagnostics;
 using MimeMapping;
+using PicaPico;
 using Clipboard = System.Windows.Forms.Clipboard;
 using Image = System.Drawing.Image;
+using ToolStripMenuItem = System.Windows.Forms.ToolStripMenuItem;
 
 namespace ClipboardServer
 {
@@ -26,14 +26,13 @@ namespace ClipboardServer
     /// </summary>
     public partial class MainWindow : Window
     {
-        private static readonly string APP_MANE = "ClipboardServer";
+        private static readonly string APP_NAME = "ClipboardServer";
         private static readonly int MAX_DATA_LENGTH = 10485760;
         private static int HTTP_PORT = 37259;
         private static byte[] faviconLight;
         private static byte[] faviconDark;
-        private static Webserver webServer;
-        private static TaskbarIcon notifyIcon;
-        private MenuItem startupMenu;
+        private static NotifyIcon notifyIcon;
+        private ToolStripMenuItem startupMenu;
         public MainWindow()
         {
             InitializeComponent();
@@ -56,8 +55,7 @@ namespace ClipboardServer
 
         private void ClipboardServerSourceInitialized(object sender, EventArgs e)
         {
-            var listener = new ThemeListener(this);
-            listener.ThemeChanged += ThemeSettingsChanged;
+            ThemeListener.ThemeChanged += OnThemeSettingsChanged;
             Visibility = Visibility.Hidden;
             Hide();
             Init();
@@ -67,34 +65,28 @@ namespace ClipboardServer
         {
             CopyRightYear.Content = DateTime.Now.Year;
             var chinese = IsChinese();
-            startupMenu = new MenuItem()
+            startupMenu = new ToolStripMenuItem(chinese ? "开机启动" : "Startup", null, OnSetStartup)
             {
-                Header = chinese ? "开机启动" : "Startup",
-                IsCheckable = true,
-                IsChecked = IsStartupEnabled()
+                Checked = IsStartupEnabled(),
+                CheckOnClick = true,
             };
-            startupMenu.Click += OnSetStartup;
-            var exitMenu = new MenuItem()
+            var exitMenu = new ToolStripMenuItem(chinese ? "退出" : "Exit", null, Exit)
             {
-                Header = chinese ? "退出" : "Exit"
+                Margin = new System.Windows.Forms.Padding(0, 0, 0, 2),
             };
-            exitMenu.Click += Exit;
-            var aboutMenu = new MenuItem()
+            var aboutMenu = new ToolStripMenuItem(chinese ? "关于" : "About", null, ShowWindow)
             {
-                Header = chinese ? "关于" : "About"
+                Margin = new System.Windows.Forms.Padding(0, 2, 0, 0),
             };
-            aboutMenu.Click += ShowWindow;
-            notifyIcon = new TaskbarIcon()
+            notifyIcon = new NotifyIcon()
             {
-                ContextMenu = new ContextMenu()
-                {
-                    Items = { aboutMenu, startupMenu, exitMenu }
-                },
-                ToolTipText = "Clipboard Server\n\n" + (chinese ? "监听端口：" : "Listen On ") + HTTP_PORT,
-                MenuActivation = PopupActivationMode.RightClick
+                Text = "Clipboard Server\n\n" + (chinese ? "监听端口：" : "Listen On ") + HTTP_PORT,
             };
-            SetMenuItemStyle();
-            SetIcon(ThemeHelper.GetWindowsTheme());
+            notifyIcon.AddMenu(new ToolStripMenuItem[]
+            {
+                aboutMenu, startupMenu, exitMenu
+            });
+            SetIcon(ThemeListener.IsDarkMode ? WindowsTheme.Dark : WindowsTheme.Light);
             InitWebServer();
         }
 
@@ -106,9 +98,12 @@ namespace ClipboardServer
 
         private void InitWebServer()
         {
-            webServer = new Webserver("+", HTTP_PORT, false, null, null, ClipboardIndex);
+            Webserver webServer = new Webserver("+", HTTP_PORT, false, null, null, ClipboardIndex);
             webServer.Events.Logger = WebServerLogger;
             webServer.Start();
+            Webserver webServerV6 = new Webserver("[::]", HTTP_PORT, false, null, null, ClipboardIndex);
+            webServerV6.Events.Logger = WebServerLogger;
+            webServerV6.Start();
         }
 
         private void WebServerLogger(string msg)
@@ -133,31 +128,18 @@ namespace ClipboardServer
             Application.Current.Shutdown();
         }
 
-        private void SetMenuItemStyle()
-        {
-            foreach (MenuItem menuItem in notifyIcon.ContextMenu.Items)
-            {
-                menuItem.Height = 20;
-                menuItem.MinWidth = 105;
-                menuItem.FontSize = 12;
-                menuItem.VerticalContentAlignment = System.Windows.VerticalAlignment.Center;
-                menuItem.Margin = new Thickness(5, 0, 5, 0);
-                menuItem.Padding = new Thickness(5, 0, 5, 0);
-            }
-        }
-
         private void OnSetStartup(object sender, EventArgs e)
         {
             string keyName = @"Software\Microsoft\Windows\CurrentVersion\Run";
             using (RegistryKey rKey = Registry.CurrentUser.OpenSubKey(keyName, true))
             {
-                if (startupMenu.IsChecked)
+                if (startupMenu.Checked)
                 {
-                    rKey.SetValue(APP_MANE, System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName);
+                    rKey.SetValue(APP_NAME, Process.GetCurrentProcess().MainModule.FileName);
                 }
                 else
                 {
-                    rKey.DeleteValue(APP_MANE, false);
+                    rKey.DeleteValue(APP_NAME, false);
                 }
                 rKey.Close();
             }
@@ -168,13 +150,12 @@ namespace ClipboardServer
             string keyName = @"Software\Microsoft\Windows\CurrentVersion\Run";
             using (RegistryKey rKey = Registry.CurrentUser.OpenSubKey(keyName))
             {
-                return rKey.GetValue(APP_MANE) != null;
+                return rKey.GetValue(APP_NAME) != null;
             }
         }
 
         private void SetIcon(WindowsTheme systemTheme)
         {
-            notifyIcon.ContextMenu.UpdateDefaultStyle();
             if (systemTheme == WindowsTheme.Dark)
             {
                 notifyIcon.Icon = Properties.Resources.clipboard_white;
@@ -419,11 +400,12 @@ namespace ClipboardServer
             }
         }
 
-        private void ThemeSettingsChanged(WindowsTheme theme)
+
+        private void OnThemeSettingsChanged(bool isDark)
         {
             Dispatcher.Invoke((Action)(() =>
             {
-                SetIcon(theme);
+                SetIcon(isDark ? WindowsTheme.Dark : WindowsTheme.Light);
             }));
         }
 
@@ -440,41 +422,9 @@ namespace ClipboardServer
             Default
         }
 
-        public class ThemeHelper
-        {
-            private const string _registryKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
-
-            private const string _registryValueName = "AppsUseLightTheme";
-
-
-            public static WindowsTheme GetWindowsTheme()
-            {
-                object registryValueObject;
-                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(_registryKeyPath))
-                {
-                    registryValueObject = key?.GetValue(_registryValueName);
-                    if (registryValueObject != null)
-                    {
-                        int registryValue = (int)registryValueObject;
-                        return registryValue > 0 ? WindowsTheme.Light : WindowsTheme.Dark;
-                    }
-                }
-                using (RegistryKey key = Registry.LocalMachine.OpenSubKey(_registryKeyPath))
-                {
-                    registryValueObject = key?.GetValue(_registryValueName);
-                    if (registryValueObject != null)
-                    {
-                        int registryValue = (int)registryValueObject;
-                        return registryValue > 0 ? WindowsTheme.Light : WindowsTheme.Dark;
-                    }
-                }
-                return WindowsTheme.Light;
-            }
-        }
-
         private void OpenGithub(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            string githubUrl = "https://github.com/hehang0/" + APP_MANE;
+            string githubUrl = "https://github.com/hehang0/" + APP_NAME;
             Process.Start(new ProcessStartInfo(githubUrl) { UseShellExecute = true });
         }
     }
