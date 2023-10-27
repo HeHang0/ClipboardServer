@@ -6,8 +6,7 @@
         xmlns:ui="http://schemas.modernwpf.com/2019"
         xmlns:local="clr-namespace:ClipboardServer" 
         mc:Ignorable="d" Closing="ClipboardServerClosing"
-        SourceInitialized="ClipboardServerSourceInitialized"
-        ui:WindowHelper.UseModernWindowStyle="True"
+        ui:WindowHelper.UseModernWindowStyle="True" Visibility="Hidden"
         Title="ClipboardServer" Height="300" Width="400" WindowStartupLocation="CenterScreen" ResizeMode="NoResize">
     <Grid>
         <StackPanel>

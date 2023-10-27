@@ -1,8 +1,4 @@
-﻿using System;
-using System.Globalization;
-using System.IO;
-using System.Reflection;
-using System.Windows;
+﻿using System.Windows;
 
 namespace ClipboardServer
 {
@@ -11,5 +7,11 @@ namespace ClipboardServer
     /// </summary>
     public partial class App : Application
     {
+        private Server server;
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            server = new Server();
+            base.OnStartup(e);
+        }
     }
 }
