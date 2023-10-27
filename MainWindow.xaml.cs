@@ -228,7 +228,8 @@ namespace ClipboardServer
                 var dataObject = Clipboard.GetDataObject();
                 if (dataObject != null && dataObject.GetFormats().Length > 0)
                 {
-                    format = dataObject.GetFormats()[0];
+                    var formats = dataObject.GetFormats();
+                    format = formats[0];
                     if (format.ToLower().Contains("bitmap"))
                     {
                         Image image = dataObject.GetData(System.Windows.Forms.DataFormats.Bitmap, true) as Image;
@@ -302,11 +303,41 @@ namespace ClipboardServer
             if (contentType.StartsWith("text"))
             {
                 string text = Encoding.UTF8.GetString(ctx.Request.DataAsBytes);
+                System.Windows.Forms.TextDataFormat format = System.Windows.Forms.TextDataFormat.Text;
+                string plainText = string.Empty;
+                if (contentType.Contains("rtf"))
+                {
+                    format = System.Windows.Forms.TextDataFormat.Rtf;
+                    using (var rtb = new System.Windows.Forms.RichTextBox())
+                    {
+                        rtb.Rtf = text;
+                        plainText = rtb.Text;
+                    }
+                }
+                else if (contentType.Contains("html"))
+                {
+                    format = System.Windows.Forms.TextDataFormat.Html;
+                    plainText = text;
+                }
+                else if (contentType.Contains("unicode"))
+                {
+                    format = System.Windows.Forms.TextDataFormat.UnicodeText;
+                    plainText = text;
+                }
+                else if (contentType.Contains("comma"))
+                {
+                    format = System.Windows.Forms.TextDataFormat.UnicodeText;
+                    plainText = text;
+                }
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     RunAsSTA(() =>
                     {
-                        Clipboard.SetText(text);
+                        Clipboard.SetText(text, format);
+                        if(!string.IsNullOrEmpty(plainText))
+                        {
+                            Clipboard.SetText(plainText, System.Windows.Forms.TextDataFormat.Text);
+                        }
                     });
                 }
             }
@@ -377,11 +408,17 @@ namespace ClipboardServer
 
         private static async Task sendString(HttpContext ctx, string msg, string contentType= "text/plain;charset=utf-8", int statusCode= (int)HttpStatusCode.OK)
         {
-            ctx.Response.StatusCode = statusCode;
-            ctx.Response.ContentType = contentType;
-            var data = Encoding.UTF8.GetBytes(msg);
-            ctx.Response.ContentLength = data.Length;
-            await ctx.Response.SendAsync(data);
+            try
+            {
+                ctx.Response.StatusCode = statusCode;
+                ctx.Response.ContentType = contentType;
+                var data = Encoding.UTF8.GetBytes(msg);
+                ctx.Response.ContentLength = data.Length;
+                await ctx.Response.SendAsync(data);
+            }
+            catch (Exception)
+            {
+            }
             return;
         }
 
