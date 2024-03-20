@@ -71,7 +71,7 @@ namespace ClipboardServer
             var indexPath = Path.GetFullPath(Path.Combine("..", "..", "Resources", "index.html"));
             await SendString(ctx, File.ReadAllText(indexPath), "text/html");
 #else
-                await sendString(ctx, Properties.Resources.index, "text/html");
+                await SendString(ctx, Properties.Resources.index, "text/html");
 #endif
             return;
         }
@@ -340,7 +340,7 @@ namespace ClipboardServer
                 Console.WriteLine("\nIt is a real image");
                 return true;
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 Console.WriteLine("\nIt is a fate image");
                 return false;
