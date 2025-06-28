@@ -24,6 +24,7 @@ namespace ClipboardServer
     public class Server
     {
         private static readonly int MAX_DATA_LENGTH = 10485760;
+        private static readonly int RTFD_DATA_LENGTH = 102400;
         public static int HTTP_PORT = 37259;
         private static byte[] faviconLight;
         private static byte[] faviconDark;
@@ -218,44 +219,73 @@ namespace ClipboardServer
                 await SendString(ctx, "Too Large Size", statusCode: (int)HttpStatusCode.NotAcceptable);
                 return;
             }
+            if (ctx.Request.ContentLength == 0)
+            {
+                await SendString(ctx, "No Size", statusCode: (int)HttpStatusCode.NotAcceptable);
+                return;
+            }
             var contentType = ctx.Request.Headers.Get("Content-Type")?.ToLower() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(contentType) && ctx.Request.DataAsBytes.Length < RTFD_DATA_LENGTH &&
+                ctx.Request.DataAsString.StartsWith("rtfd") &&
+                ctx.Request.DataAsString.Contains("TXT.rtf"))
+            {
+                contentType = "text/x-rtfd";
+            }
             if (contentType.StartsWith("text"))
             {
                 string text = Encoding.UTF8.GetString(ctx.Request.DataAsBytes);
-                TextDataFormat format = TextDataFormat.Text;
+                var match = Regex.Match(text, @"({\\rtf.*})", RegexOptions.Singleline);
+                if (match.Success)
+                {
+                    text = match.Groups[1].Value;
+                }
+                string format = DataFormats.Text;
                 string plainText = string.Empty;
                 if (contentType.Contains("rtf"))
                 {
-                    format = TextDataFormat.Rtf;
-                    using (var rtb = new System.Windows.Forms.RichTextBox())
+                    format = DataFormats.Rtf;
+                    dispatcher.Invoke(() =>
                     {
-                        rtb.Rtf = text;
-                        plainText = rtb.Text;
-                    }
+                        using (var rtb = new System.Windows.Forms.RichTextBox())
+                        {
+                            rtb.Rtf = text;
+                            plainText = rtb.Text;
+                        }
+                    });
                 }
                 else if (contentType.Contains("html"))
                 {
-                    format = TextDataFormat.Html;
+                    format = DataFormats.Html;
                     plainText = StripHtmlTags(text);
                 }
                 else if (contentType.Contains("unicode"))
                 {
-                    format = TextDataFormat.UnicodeText;
+                    format = DataFormats.UnicodeText;
                     plainText = text;
                 }
                 else if (contentType.Contains("comma"))
                 {
-                    format = TextDataFormat.UnicodeText;
+                    format = DataFormats.CommaSeparatedValue;
                     plainText = text;
                 }
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     dispatcher.Invoke(() =>
                     {
-                        Clipboard.SetText(text, format);
-                        if (!string.IsNullOrEmpty(plainText))
+                        if (format == DataFormats.Text && !string.IsNullOrEmpty(plainText))
                         {
                             Clipboard.SetText(plainText, TextDataFormat.Text);
+                        }
+                        else
+                        {
+                            var data = new DataObject();
+                            data.SetData(format, text);
+                            data.SetData(DataFormats.Text, plainText);
+                            if(format != DataFormats.UnicodeText)
+                            {
+                                data.SetData(DataFormats.UnicodeText, plainText);
+                            }
+                            Clipboard.SetDataObject(data);
                         }
                     });
                 }
